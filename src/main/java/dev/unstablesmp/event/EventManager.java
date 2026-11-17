@@ -22,7 +22,7 @@ public final class EventManager implements Ticker.Tickable {
     /** Starts an event. Returns null on success or a messages.yml key explaining why not. */
     public String start(EventType type, Location at, String starter) {
         if (running.containsKey(type)) return "event.already-running";
-        int max = plugin.getConfig().getInt("events.max-concurrent", 2);
+        int max = plugin.getConfig().getInt("events.max-concurrent", 4);
         if (running.size() >= max) return "event.too-many";
         if (!plugin.regions().canRunEvent(at)) return "event.region-denied";
         ConfigurationSection cfg = plugin.getConfig().getConfigurationSection("events." + type.configKey);

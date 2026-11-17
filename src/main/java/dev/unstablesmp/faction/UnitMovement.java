@@ -42,9 +42,9 @@ final class UnitMovement {
     private void flyMove(Unit u, int now) {
         Mob m = u.mob;
         LivingEntity tgt = u.combatTarget;
-        if (tgt != null && tgt.isValid() && tgt.getWorld() == m.getWorld()) {
+        if (tgt != null && tgt.isValid() && !tgt.isDead() && tgt.getWorld() == m.getWorld() && !u.retreating(now)) {
+            tgt.getLocation(tl);
             if (u.t.has(Trait.ORBIT) && now < u.orbitUntil) {
-                tgt.getLocation(tl);
                 double cx = tl.getX(), cy = tl.getY() + 2.2, cz = tl.getZ();
                 double ang = Math.atan2(ml.getZ() - cz, ml.getX() - cx) + 0.4;
                 double r = 4.5;
@@ -53,8 +53,10 @@ final class UnitMovement {
                 vel.setZ((cz + Math.sin(ang) * r - ml.getZ()) * 0.3);
                 clamp(vel, 0.7);
                 m.setVelocity(vel);
+                return;
             }
-            return; // diving: vanilla vex charge AI does the rest
+            dive(u, tgt, now);
+            return;
         }
         if (!u.hasSlot) return;
         double ang = Math.PI * 2 * u.haloIndex / Math.max(1, u.haloCount) + now * 0.02;
@@ -72,6 +74,35 @@ final class UnitMovement {
             vel.setZ(dz * sp);
             m.setVelocity(vel);
         }
+    }
+
+    /** Flyer charge: fly at the target's chest and land a real melee hit (fires normal damage events). */
+    private void dive(Unit u, LivingEntity tgt, int now) {
+        Mob m = u.mob;
+        double dx = tl.getX() - ml.getX();
+        double dy = tl.getY() + tgt.getHeight() * 0.6 - (ml.getY() + m.getHeight() * 0.5);
+        double dz = tl.getZ() - ml.getZ();
+        double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        double reach = 0.9 + (m.getWidth() + tgt.getWidth()) * 0.5;
+        m.lookAt(tgt);
+        if (dist <= reach) {
+            if (now >= u.cdAttack) {
+                m.swingMainHand();
+                m.attack(tgt);
+                u.cdAttack = now + mgr.s.flyerAttackCooldown;
+                double inv = dist > 1e-3 ? 1 / dist : 0;
+                vel.setX(-dx * inv * 0.35);
+                vel.setY(0.25);
+                vel.setZ(-dz * inv * 0.35);
+                m.setVelocity(vel);
+            }
+            return;
+        }
+        double sp = Math.min(mgr.s.flyerSpeed, 0.15 + dist * 0.2) / dist;
+        vel.setX(dx * sp);
+        vel.setY(dy * sp);
+        vel.setZ(dz * sp);
+        m.setVelocity(vel);
     }
 
     private void fightMove(Unit u, LivingEntity tgt, int now) {

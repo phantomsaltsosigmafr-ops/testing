@@ -73,6 +73,7 @@ final class SwarmCombat {
         LivingEntity best = null;
         double bestSq = s.leashRange * s.leashRange * 0.5;
         for (LivingEntity e : sw.world.getNearbyLivingEntities(at, s.leashRange * 0.7)) {
+            if (!(e instanceof Player || e instanceof org.bukkit.entity.Enemy || plugin.units().isUnit(e))) continue;
             if (!plugin.targeting().canHarm(sw.caster, e)) continue;
             double d = e.getLocation().distanceSquared(at);
             if (d < bestSq) {

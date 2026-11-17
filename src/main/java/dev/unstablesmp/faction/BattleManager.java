@@ -106,10 +106,10 @@ public final class BattleManager implements Ticker.Tickable {
         a.battle = bt;
         b.battle = bt;
         battles.add(bt);
-        Component msg = plugin.messages().get("battle.start", Messages.c("a", a.display), Messages.c("b", b.display),
+        Component msg = plugin.messages().get("battle.start", Messages.c("side_a", a.display), Messages.c("side_b", b.display),
                 Messages.p("size", Integer.toString(size)));
         Title title = Title.title(plugin.messages().get("battle.start-title"),
-                plugin.messages().get("battle.start-subtitle", Messages.c("a", a.display), Messages.c("b", b.display)),
+                plugin.messages().get("battle.start-subtitle", Messages.c("side_a", a.display), Messages.c("side_b", b.display)),
                 Title.Times.times(Duration.ofMillis(300), Duration.ofMillis(2200), Duration.ofMillis(500)));
         for (Player x : nearby(c)) {
             x.sendMessage(msg);
@@ -172,7 +172,7 @@ public final class BattleManager implements Ticker.Tickable {
         Component msg;
         Title title;
         if (winner == null) {
-            msg = plugin.messages().get("battle.draw", Messages.c("a", bt.a.display), Messages.c("b", bt.b.display));
+            msg = plugin.messages().get("battle.draw", Messages.c("side_a", bt.a.display), Messages.c("side_b", bt.b.display));
             title = Title.title(plugin.messages().get("battle.draw-title"), Component.empty());
         } else {
             Faction loser = winner == bt.a ? bt.b : bt.a;
@@ -181,6 +181,7 @@ public final class BattleManager implements Ticker.Tickable {
                     plugin.messages().get("battle.victory-subtitle", Messages.c("loser", loser.display)));
             winner.mode = Faction.Mode.DEFEND;
         }
+        plugin.getComponentLogger().info(msg);
         for (Player p : nearby(bt.centre)) {
             p.sendMessage(msg);
             p.showTitle(title);

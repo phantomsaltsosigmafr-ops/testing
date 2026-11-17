@@ -22,6 +22,8 @@ public final class UnitSettings {
     public double rageThreshold = 0.4;
     public double retreatThreshold = 0.3;
     public int leaderBarRange = 48;
+    public double flyerSpeed = 0.6;
+    public int flyerAttackCooldown = 20;
 
     public double maxHardness = 30;
     public boolean dropBroken;
@@ -45,6 +47,8 @@ public final class UnitSettings {
         s.rageThreshold = c.getDouble("rage-threshold", s.rageThreshold);
         s.retreatThreshold = c.getDouble("retreat-threshold", s.retreatThreshold);
         s.leaderBarRange = Math.max(8, c.getInt("leader-bossbar-range", s.leaderBarRange));
+        s.flyerSpeed = c.getDouble("flyers.dive-speed", s.flyerSpeed);
+        s.flyerAttackCooldown = Math.max(5, c.getInt("flyers.attack-cooldown-ticks", s.flyerAttackCooldown));
         s.maxHardness = c.getDouble("building.max-break-hardness", s.maxHardness);
         s.dropBroken = c.getBoolean("building.drop-broken-blocks", false);
         s.maxPlacedPerFaction = Math.max(100, c.getInt("building.max-tracked-placed", s.maxPlacedPerFaction));

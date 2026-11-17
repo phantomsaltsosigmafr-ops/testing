@@ -402,6 +402,9 @@ units:
   rage-threshold: 0.4
   retreat-threshold: 0.3
   leader-bossbar-range: 48
+  flyers:                          # flying units (vexes) are fully plugin-driven
+    dive-speed: 0.6
+    attack-cooldown-ticks: 20
   building:
     max-break-hardness: 6.0        # obsidian is 50, stone 1.5, deepslate 3
     drop-broken-blocks: false
@@ -827,7 +830,7 @@ battles:
 events:
   broadcast-scope: WORLD     # WORLD or SERVER: who sees titles and the boss bar
   bossbar-range: 0           # 0 = everyone in scope, otherwise only players within this many blocks
-  max-concurrent: 2
+  max-concurrent: 4
   portal-invasion:
     enabled: true
     name: "<gradient:#3B0A57:#B14CFF><bold>PORTAL INVASION"

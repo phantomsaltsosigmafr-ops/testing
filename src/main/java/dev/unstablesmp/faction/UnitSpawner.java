@@ -4,6 +4,7 @@ import dev.unstablesmp.UnstableSMP;
 import dev.unstablesmp.core.EntityTracker;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -39,6 +40,8 @@ final class UnitSpawner {
         if (cls == null || !Mob.class.isAssignableFrom(cls)) return null;
         Class<? extends Mob> mobClass = cls.asSubclass(Mob.class);
         Mob m = w.spawn(at, mobClass, false, x -> configure(x, f, t));
+        // Flyers are fully plugin-driven (halo, orbit, dive, melee): vanilla vex goals would fight our steering.
+        if (t.flying) Bukkit.getMobGoals().removeAllGoals(m);
         w.spawnParticle(Particle.LARGE_SMOKE, at, 12, 0.3, 0.8, 0.3, 0.02);
         if (t.leader) {
             w.playSound(at, Sound.ENTITY_RAVAGER_ROAR, 2f, 0.7f);

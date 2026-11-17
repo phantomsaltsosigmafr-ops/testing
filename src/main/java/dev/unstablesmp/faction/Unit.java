@@ -28,7 +28,7 @@ public final class Unit {
     public int haloIndex, haloCount;
     public double haloRadius;
 
-    public int cdCrit, cdLeap, cdBlink, cdSummon, cdRetreat, cdStrafeFlip, cdBuild, cdLaugh;
+    public int cdCrit, cdLeap, cdBlink, cdSummon, cdRetreat, cdStrafeFlip, cdBuild, cdLaugh, cdAttack;
     public int retreatUntil, orbitUntil, diveUntil, flickerUntil;
     public int strafeDir = 1;
 
