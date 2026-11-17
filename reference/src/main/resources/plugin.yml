@@ -1,0 +1,16 @@
+name: NullPortals
+version: 1.0.0
+main: dev.nullportals.NullPortalsPlugin
+api-version: '1.21'
+description: Mass nether portals tear open over an area and nulls (or VexBot bots) pour out of them.
+author: you
+commands:
+  nullportal:
+    description: Start or stop a null portal event.
+    usage: /nullportal <start|at|stop|list|reload>
+    aliases: [np, nullportals]
+    permission: nullportal.admin
+permissions:
+  nullportal.admin:
+    description: Use /nullportal
+    default: op

@@ -1,0 +1,71 @@
+name: UnstableSMP
+version: '${version}'
+main: dev.unstablesmp.UnstableSMP
+api-version: '1.21'
+description: Unstable SMP Simulator - Vexbot swarms, ability sets, faction armies, battles and server events.
+authors: [UnstableSMP]
+softdepend: [WorldGuard]
+# The /uss command is registered at runtime through Paper's command API (no commands: block needed).
+# /vexbot and /vex are deliberately never registered so the separate VexBot plugin keeps them.
+
+permissions:
+  uss.admin:
+    description: Everything in UnstableSMP.
+    default: op
+    children:
+      uss.gui: true
+      uss.give: true
+      uss.formation: true
+      uss.event: true
+      uss.battle: true
+      uss.reload: true
+      uss.status: true
+      uss.ability.*: true
+  uss.gui:
+    description: Open /uss gui and use Faction Horns.
+    default: op
+  uss.give:
+    description: /uss give and the GUI ability page.
+    default: op
+  uss.formation:
+    description: /uss formation for your own swarm.
+    default: true
+  uss.event:
+    description: Start and stop server events (/uss event, GUI).
+    default: op
+  uss.battle:
+    description: Start and end faction battles (/uss battle, GUI).
+    default: op
+  uss.reload:
+    description: /uss reload
+    default: op
+  uss.status:
+    description: /uss status (entity counts and tick timings).
+    default: op
+  uss.combat.bypass:
+    description: Never combat-tagged.
+    default: false
+  uss.ability.*:
+    description: Use every ability set.
+    default: true
+    children:
+      uss.ability.vexbots: true
+      uss.ability.null: true
+      uss.ability.portal: true
+      uss.ability.law: true
+      uss.ability.cindercrest: true
+  uss.ability.vexbots:
+    description: Use VEXBOTS ability items.
+    default: true
+  uss.ability.null:
+    description: Use NULL ability items.
+    default: true
+  uss.ability.portal:
+    description: Use PORTAL SWARM ability items.
+    default: true
+  uss.ability.law:
+    description: Use LAW ability items.
+    default: true
+  uss.ability.cindercrest:
+    description: Use CINDERCREST ability items.
+    default: true

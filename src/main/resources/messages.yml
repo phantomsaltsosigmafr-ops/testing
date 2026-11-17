@@ -1,0 +1,141 @@
+# UnstableSMP messages - all MiniMessage (https://docs.advntr.dev/minimessage/format.html)
+# <prefix> works in every message. Placeholders are listed next to each message.
+prefix: "<dark_gray>[<gradient:#7A2BD9:#C77DFF>USS</gradient><dark_gray>]</dark_gray> <gray>"
+actionbar-separator: " <dark_gray>┃</dark_gray> "
+
+no-permission: "<prefix><red>You don't have permission to do that."
+players-only: "<prefix><red>Only players can do that."
+player-not-found: "<prefix><red>Player not found: <white><player>"
+reloaded: "<prefix><green>Config and messages reloaded. Live factions kept their orders."
+gave: "<prefix>Gave <white><count></white> ability item(s) to <white><player></white>."
+unknown-ability: "<prefix><red>Unknown ability or set: <white><ability></white>. Try tab-complete."
+unknown-faction: "<prefix><red>Unknown faction: <white><faction>"
+unknown-formation: "<prefix><red>Unknown formation: <white><formation>"
+help: |-
+  <gradient:#7A2BD9:#C77DFF><bold>Unstable SMP Simulator</bold></gradient>
+  <light_purple>/uss gui</light_purple> <gray>- command center (factions, spawning, battles, events)
+  <light_purple>/uss give <ability|set|all> [player]</light_purple> <gray>- ability items
+  <light_purple>/uss formation <name> [player]</light_purple> <gray>- set a swarm formation
+  <light_purple>/uss event <portal|null|law|cinder> [stop]</light_purple> <gray>- server events
+  <light_purple>/uss battle <factionA> <factionB> [size]</light_purple> <gray>- faction battle
+  <light_purple>/uss reload</light_purple> <gray>| <light_purple>/uss status</light_purple>
+usage:
+  give: "<prefix><red>Usage: /uss give <ability|set|all> [player]"
+  formation: "<prefix><red>Usage: /uss formation <name> [player]"
+  event: "<prefix><red>Usage: /uss event <portal|null|law|cinder> [stop|player]  or  /uss event stop"
+  battle: "<prefix><red>Usage: /uss battle <factionA> <factionB> [size] [player]  or  /uss battle stop"
+status:
+  header: "<gradient:#7A2BD9:#C77DFF><bold>UnstableSMP status</bold></gradient>"
+
+combat:
+  actionbar: "<red><bold>COMBAT: <white><seconds>"
+  tagged: "<prefix><red>You are in combat for <white><seconds>s</white>. Logging out now kills you."
+  untagged: "<prefix><green>You are no longer in combat."
+  command-blocked: "<prefix><red>You can't use that command in combat (<white><seconds>s</white>)."
+  teleport-blocked: "<prefix><red>You can't teleport while in combat."
+  pearl-blocked: "<prefix><red>Ender pearls are disabled while in combat."
+  logout-broadcast: "<prefix><red><player></red> logged out in combat and died."
+  logout-killer: "<red>combat logging"
+
+kill:
+  # <victim> <verb> <killer>
+  format: "<gray><victim> was <gradient:#FF3355:#FFC371><bold><verb></bold></gradient> by <white><killer>"
+
+combo:
+  chat: "<prefix><light_purple>COMBO: <white><combo>"
+
+ability:
+  no-permission: "<prefix><red>You can't use this ability set."
+  disabled-world: "<red>Abilities are disabled in this world."
+  silenced: "<gold><bold>SILENCED</bold> <white><seconds>s"
+  cooldown: "<ability> <gray>on cooldown: <white><seconds>s"
+  actionbar: "<ability> <dark_gray>» <main> <dark_gray>| <gray>sneak <sneak>"
+  ready: "<green>READY"
+  cd: "<red><seconds>s"
+  no-target: "<red>No valid target in sight."
+  no-safe-spot: "<red>No safe place to land there."
+  branded: "<white>Branded <dark_gray>» <white><target>"
+  you-are-branded: "<prefix><white><bold>You've been BRANDED.</bold> <gray>The swarm is coming."
+  sentenced: "<gold>Sentenced <white><target>"
+  you-are-sentenced: "<prefix><gold><bold>SENTENCED</bold> <gray>by <white><caster></white>. You can't move."
+  sentenced-teleport: "<prefix><gold>The chains hold you in place."
+  you-are-silenced: "<prefix><gold><bold>ORDER!</bold> <gray><caster> silenced you for <white><seconds>s</white>."
+  order: "<gold>ORDER <gray>» silenced <white><players></white> players, <white><swarms></white> swarms, <white><effects></white> effects"
+  phoenix-ready: "<ability> <dark_gray>» <green>READY <gray>(triggers at low HP)"
+  phoenix-spent: "<ability> <dark_gray>» <red>SPENT <gray>(resets on death)"
+  phoenix-too-healthy: "<gold>You're not hurt enough to detonate yet."
+  phoenix-broadcast: "<prefix><gold><bold><player></bold> rose from the ashes!"
+
+swarm:
+  none: "<red>You have no swarm. Use a Vexbot Core first."
+  summoned: "<light_purple>Swarm online <dark_gray>» <white>+<count> bots"
+  full: "<gray>Your swarm is already at full strength."
+  cap: "<prefix><red>The display-entity cap is reached - no room for more Vexbots right now."
+  dismissed: "<gray>Swarm dismissed."
+  recalled: "<aqua>Swarm recalled."
+  formation: "<light_purple>Formation <dark_gray>» <white><formation>"
+  formation-set: "<prefix>Set <white><player></white>'s swarm to <light_purple><formation></light_purple>."
+  arrowhead: "<dark_purple><bold>ARROWHEAD DIVE</bold> <gray>» <white><target>"
+  bot-destroyed: "<light_purple>Vexbot destroyed"
+  caged: "<prefix><light_purple>The dome cage holds you in."
+
+portal:
+  hit: "<dark_purple>Swarm Portal <white><hp></white><gray>/<max>"
+  destroyed: "<prefix><white><player></white> smashed <white><owner></white>'s Swarm Portal!"
+  max-active: "<red>You already have a portal open."
+
+faction:
+  joined: "<prefix>You joined <faction><gray>. Its units will never attack you."
+  left: "<prefix>You left <faction><gray>."
+  cap: "<prefix><red>Unit cap reached: spawned <white><spawned></white>/<white><asked></white>."
+  no-leader: "<prefix><red>This faction has no leader set in config.yml."
+  horn-given: "<prefix>Here's the <faction> <gray>horn."
+  horn-unknown: "<prefix><red>That horn's faction no longer exists in config.yml."
+  stand-down: "<prefix><faction> <white><bold>STAND DOWN</bold> <gray>- all units stop fighting and form up on you."
+  focus: "<prefix><faction> <red><bold>ATTACK</bold> <white><target>"
+  march: "<prefix><faction> <yellow>marching to <white><x> <y> <z>"
+  rally: "<prefix><faction> <green>rally on you."
+  own-unit: "<prefix><red>That's one of your own units."
+  own-member: "<prefix><red>That's a member of this faction."
+  mode: "<prefix><faction> <gray>is now <white><mode></white>."
+  builds-cleared: "<prefix>Removed <white><count></white> placed blocks."
+  leader-fallen: "<prefix><leader> <gray>of <faction> <gray>has fallen!"
+
+battle:
+  pick-two: "<prefix><red>Pick two different factions (left-click = side A, right-click = side B)."
+  already-fighting: "<prefix><red>One of those factions is already in a battle."
+  cap: "<prefix><red>Couldn't spawn the armies (unit caps reached)."
+  start: "<prefix><red><bold>BATTLE!</bold> <a> <gray>vs <b> <gray>(<size> each)"
+  start-title: "<red><bold>BATTLE"
+  start-subtitle: "<a> <gray>vs <b>"
+  victory: "<prefix><gold><bold>VICTORY:</bold> <winner> <gray>wins the battle against <loser><gray>!"
+  victory-title: "<gold><bold>VICTORY"
+  victory-subtitle: "<loser> <gray>has been wiped out"
+  draw: "<prefix>The battle between <a> <gray>and <b> <gray>ended in a draw."
+  draw-title: "<gray><bold>DRAW"
+  ended-all: "<prefix>Ended <white><count></white> battle(s)."
+
+event:
+  start: "<prefix><event> <gray>has begun near <white><x>, <z></white>!"
+  start-subtitle: "<gray>started by <white><starter>"
+  started: "<prefix>Started <event><gray>."
+  stopped: "<prefix>Stopped <event><gray>."
+  stopped-all: "<prefix>Stopped <white><count></white> event(s)."
+  not-running: "<prefix><red><event> <red>isn't running."
+  already-running: "<prefix><red>That event is already running."
+  too-many: "<prefix><red>Too many events are running (events.max-concurrent)."
+  region-denied: "<prefix><red>Events aren't allowed in this region."
+  disabled: "<prefix><red>That event is disabled in config.yml."
+  bossbar: "<event> <dark_gray>» <white><time> <dark_gray>» <gray><alive> hostiles"
+  bossbar-closing: "<event> <dark_gray>» <gray>collapsing..."
+  leader-arrives: "<prefix><leader> <gray>has arrived! <dark_gray>(<event><dark_gray>)"
+  end-title: "<event>"
+  end-subtitle: "<gray>is over."
+  ended: "<prefix><event> <gray>has ended."
+
+gui:
+  main-title: "<dark_purple><bold>Unstable SMP Command"
+  spawn-title: "<dark_purple><bold>Spawn Units"
+  battle-title: "<red><bold>Battles"
+  events-title: "<dark_purple><bold>Server Events"
+  abilities-title: "<light_purple><bold>Abilities & Formations"

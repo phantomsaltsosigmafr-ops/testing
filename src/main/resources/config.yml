@@ -1,0 +1,926 @@
+# =====================================================================================================
+#  UnstableSMP - Unstable SMP Simulator
+#  Every number lives here. Text lives in messages.yml (MiniMessage).  /uss reload applies changes.
+#  Times: "-seconds" keys are seconds, "-ticks" keys are server ticks (20 ticks = 1 second).
+# =====================================================================================================
+
+# -----------------------------------------------------------------------------------------------------
+#  Performance caps (the plugin never spawns past these)
+# -----------------------------------------------------------------------------------------------------
+performance:
+  max-display-entities-per-player: 160   # displays + hitboxes owned by one player (swarm, portals, effects)
+  max-display-entities-server: 2000      # all display/interaction entities from this plugin
+  max-mobs-server: 400                   # all faction units (armies, events, battles)
+  max-effects: 300                       # active ability effects (zones, gavels, meteors, portals...)
+  actionbar-interval-ticks: 5            # how often the combined action bar refreshes
+
+# -----------------------------------------------------------------------------------------------------
+#  VEXBOTS swarm (display entities only - no real mobs)
+# -----------------------------------------------------------------------------------------------------
+swarm:
+  size: 24                     # bots per summon
+  shard-ratio: 0.35            # fraction of bots that are blade shards instead of cubes
+  lifetime-seconds: 90         # a swarm fades after this (0 = until recalled/dismissed); re-summon refreshes it
+  leash-range: 48              # targets further than this from the owner are dropped
+  target-memory-seconds: 20    # forget a target nobody has touched for this long
+  dive-strike-count: 8         # bots sent by Dive Strike (right-click)
+  portal-linger-seconds: 5     # how long a portal's bots stay after the portal closes
+  bot:
+    cube-hp: 6
+    shard-hp: 3
+    cube-scale: 0.5
+    shard-scale: 0.9
+    body-block: OBSIDIAN
+    face-block: PURPLE_CONCRETE        # rendered full-bright: the glowing "eye/face" panel
+    shard-item: NETHERITE_SWORD
+    glow: true
+    glow-color: "#A020F0"
+    hitboxes: true                     # Interaction hitboxes so players can hit bots (raytrace fallback is always on)
+    view-range: 1.0                    # display view-range multiplier
+  movement:
+    update-interval-ticks: 2           # position packets every N ticks (client interpolates in between)
+    max-speed: 0.8
+    max-force: 0.14
+    dive-speed: 1.5
+    slot-gain: 0.35                    # how hard bots pull toward their formation slot
+    separation-radius: 1.0
+    separation-weight: 0.9
+    alignment-weight: 0.08
+    cohesion-weight: 0.02
+    neighbour-radius: 3.0
+    wander: 0.03
+  damage:
+    contact: 0.75                      # per bot touching the target (per bot-hit-cooldown)
+    dive: 2.0                          # per diving bot that connects
+    contact-radius: 1.4
+    apply-interval-ticks: 10           # swarm damage is summed and applied once per interval (respects i-frames)
+    max-per-hit: 6.0                   # cap per application, before combos
+    bot-hit-cooldown-ticks: 12
+    harass-interval-ticks: 30          # passive formations send a few bots at the target this often
+    harass-count: 2
+    projectile-vs-bot: 4.0             # damage an arrow/trident does to a bot it hits
+  effects:
+    trail-every-ticks: 6               # END_ROD / DRAGON_BREATH / REVERSE_PORTAL trail per bot
+    ambient-sound-every-ticks: 70
+  formations:
+    rotation-speed: 1.0
+    breathe: 0.06
+    halo: {radius: 1.8, height: 2.7}
+    sky-crown: {radius: 9.0, height: 15.0}
+    v-wedge: {spacing: 1.1, distance: 3.0}
+    phalanx-wall: {spacing: 0.85, distance: 3.0}
+    spiral-vortex: {radius: 3.2, height: 4.5}
+    dome-cage: {radius: 4.5, assemble-ticks: 16, max-seconds: 6, push: 0.55}
+    arrowhead-dive: {height: 9.0, back: 7.0, spacing: 0.9, assemble-ticks: 24, return-ticks: 60}
+    pincer: {radius: 5.5}
+    rain: {height: 11.0, spacing: 1.15, drop-interval-ticks: 3}
+    orbit-shield: {radius: 3.0}
+
+# -----------------------------------------------------------------------------------------------------
+#  Ability items. Identified by PersistentDataContainer, never by name.
+#  item-model: a resource-pack item model key (e.g. "unstablesmp:null_step"), "" = vanilla look.
+#  custom-model-data: list of floats for the custom_model_data component, [] = none.
+# -----------------------------------------------------------------------------------------------------
+abilities:
+  disabled-worlds: []
+  summon_swarm:
+    name: "<gradient:#7A2BD9:#C77DFF><bold>Vexbot Core"
+    material: ECHO_SHARD
+    item-model: ""
+    custom-model-data: []
+    lore: ["<gray>A humming shard of the swarm.", "<gray>Black cubes, violet eyes, endless blades."]
+    right-click: "Summon / reinforce your Vexbot swarm"
+    sneak-right-click: "Dismiss the swarm"
+    cooldown-seconds: 45
+    sneak-cooldown-seconds: 3
+  cycle_formation:
+    name: "<light_purple><bold>Formation Sigil"
+    material: AMETHYST_SHARD
+    item-model: ""
+    custom-model-data: []
+    lore: ["<gray>Rewrites the swarm's shape."]
+    right-click: "Next formation (aims at what you look at)"
+    sneak-right-click: "Previous formation"
+    cooldown-seconds: 1.5
+    sneak-cooldown-seconds: 1.5
+    aim-range: 40
+  dive_strike:
+    name: "<dark_purple><bold>Dive Strike"
+    material: PRISMARINE_SHARD
+    item-model: ""
+    custom-model-data: []
+    lore: ["<gray>Point. Release. Watch them fall."]
+    right-click: "Send a squad of bots diving at your target"
+    sneak-right-click: "ARROWHEAD DIVE - the whole swarm divebombs"
+    cooldown-seconds: 6
+    sneak-cooldown-seconds: 20
+    range: 40
+    bots: 8
+  recall:
+    name: "<aqua><bold>Recall Beacon"
+    material: RECOVERY_COMPASS
+    item-model: ""
+    custom-model-data: []
+    lore: ["<gray>Every bot comes home."]
+    right-click: "Recall into a Halo and forget the target"
+    sneak-right-click: "Toggle Orbit Shield (blocks projectiles)"
+    cooldown-seconds: 2
+    sneak-cooldown-seconds: 8
+  null_step:
+    name: "<white><bold>NULL</bold> <gray>Step"
+    material: PHANTOM_MEMBRANE
+    item-model: ""
+    custom-model-data: []
+    lore: ["<dark_gray>you were never there."]
+    right-click: "Blink forward (safe landing only)"
+    sneak-right-click: "Blink backward"
+    cooldown-seconds: 8
+    sneak-cooldown-seconds: 8
+    range: 9
+    sneak-range: 6
+    max-drop: 6
+  null_field:
+    name: "<white><bold>NULL</bold> <gray>Field"
+    material: INK_SAC
+    item-model: ""
+    custom-model-data: []
+    lore: ["<dark_gray>light and life stop here."]
+    right-click: "Open a Null Field where you look"
+    sneak-right-click: "Open it around yourself"
+    cooldown-seconds: 25
+    sneak-cooldown-seconds: 25
+    range: 20
+    radius: 6
+    duration-seconds: 8
+    slowness-level: 2
+    damage-per-pulse: 0.0
+    glitch-cubes: 8
+  null_brand:
+    name: "<white><bold>NULL</bold> <gray>Brand"
+    material: NETHERITE_SCRAP
+    item-model: ""
+    custom-model-data: []
+    lore: ["<dark_gray>marked for deletion.", "<gray>Branded targets take bonus swarm damage."]
+    right-click: "Brand your target (swarm locks on)"
+    sneak-right-click: "Brand every enemy around you"
+    cooldown-seconds: 18
+    sneak-cooldown-seconds: 30
+    range: 30
+    duration-seconds: 10
+    sneak-radius: 6
+    sneak-duration-seconds: 5
+    sigil-item: ECHO_SHARD
+  portal_swarm:
+    name: "<gradient:#3B0A57:#B14CFF><bold>Swarm Portal"
+    material: POPPED_CHORUS_FRUIT
+    item-model: ""
+    custom-model-data: []
+    lore: ["<gray>Tear the sky. Let them pour.", "<gray>Enemies can smash the portal."]
+    right-click: "Open a portal where you look"
+    sneak-right-click: "Open a portal behind you"
+    cooldown-seconds: 60
+    sneak-cooldown-seconds: 60
+    range: 25
+    height: 2.6
+    duration-seconds: 12
+    wave-interval-ticks: 40
+    bots-per-wave: 4
+    max-bots: 16
+    portal-hp: 40
+    ring-blocks: 14
+    max-active-per-player: 1
+  judgment:
+    name: "<gold><bold>JUDGMENT"
+    material: GOLD_INGOT
+    item-model: ""
+    custom-model-data: []
+    lore: ["<yellow>The court is now in session."]
+    right-click: "Slam a giant gavel down from the sky"
+    sneak-right-click: "Verdict - three smaller gavels"
+    cooldown-seconds: 30
+    sneak-cooldown-seconds: 30
+    range: 30
+    radius: 4
+    damage: 9
+    knockback: 0.9
+    scale: 1.0
+    verdict-damage-multiplier: 0.45
+    head-block: GOLD_BLOCK
+    handle-block: QUARTZ_PILLAR
+    band-block: WHITE_CONCRETE
+  sentence:
+    name: "<gold><bold>SENTENCE"
+    material: IRON_CHAIN
+    item-model: ""
+    custom-model-data: []
+    lore: ["<yellow>Stay where the law put you."]
+    right-click: "Chain your target in place"
+    sneak-right-click: "Chain every enemy right around you"
+    cooldown-seconds: 22
+    sneak-cooldown-seconds: 35
+    range: 20
+    duration-seconds: 3
+    sneak-radius: 4
+    sneak-duration-seconds: 1.5
+    chains: 4
+    chain-block: IRON_CHAIN
+  order:
+    name: "<gold><bold>ORDER"
+    material: GOLD_NUGGET
+    item-model: ""
+    custom-model-data: []
+    lore: ["<yellow>Silence in the court.", "<gray>Disables enemy abilities, swarms and portals."]
+    right-click: "Order around you"
+    sneak-right-click: "Order where you look (smaller)"
+    cooldown-seconds: 40
+    sneak-cooldown-seconds: 40
+    radius: 10
+    sneak-range: 20
+    sneak-radius: 6
+    silence-seconds: 6
+  ember_crest:
+    name: "<gradient:#FF5A1F:#FFC371><bold>Ember Crest"
+    material: BLAZE_POWDER
+    item-model: ""
+    custom-model-data: []
+    lore: ["<gold>Where you walk, it burns."]
+    right-click: "Leave a burning trail (and move faster)"
+    sneak-right-click: "Send a line of embers racing forward"
+    cooldown-seconds: 20
+    sneak-cooldown-seconds: 16
+    duration-seconds: 6
+    speed-level: 1
+    tile-seconds: 3
+    max-tiles: 30
+    wave-length: 14
+    damage: 1.5
+    fire-ticks: 60
+    tile-block: MAGMA_BLOCK
+  ashfall:
+    name: "<gradient:#FF5A1F:#3A3A3A><bold>Ashfall"
+    material: MAGMA_CREAM
+    item-model: ""
+    custom-model-data: []
+    lore: ["<gold>The sky is falling. It's on fire."]
+    right-click: "Meteor rain where you look"
+    sneak-right-click: "A few huge meteors, tightly grouped"
+    cooldown-seconds: 35
+    sneak-cooldown-seconds: 45
+    range: 35
+    meteors: 10
+    spread: 5
+    spacing-ticks: 4
+    flight-ticks: 16
+    radius: 2.6
+    damage: 5
+    meteor-size: 1.2
+    sneak-meteors: 4
+    sneak-radius: 3.2
+    sneak-damage: 7
+    fire-ticks: 60
+    meteor-block: MAGMA_BLOCK
+  phoenix_burst:
+    name: "<gradient:#FFC371:#FF5A1F><bold>Phoenix Feather"
+    material: BLAZE_ROD
+    item-model: ""
+    custom-model-data: []
+    lore: ["<gold>Passive: when you drop low, you explode", "<gold>back to life. Once per life."]
+    right-click: "Show whether the burst is ready"
+    sneak-right-click: "Detonate manually (under 50% HP)"
+    cooldown-seconds: 0
+    sneak-cooldown-seconds: 0
+    trigger-health: 6
+    manual-threshold: 0.5
+    cheat-death: true
+    require-hotbar: false
+    radius: 5
+    damage: 8
+    knockback: 1.2
+    fire-ticks: 100
+    heal-to: 8
+    regen-seconds: 5
+    fire-resistance-seconds: 10
+
+# -----------------------------------------------------------------------------------------------------
+#  Combos: damage from one of "sources" against a target carrying "mark" is multiplied.
+#  Marks: NULL_BRAND, SENTENCED, SILENCED, IN_NULL_FIELD, BURNING.
+#  Sources: ability ids, plus swarm keys swarm / vortex / cage / pincer / rain / dive_strike /
+#           arrowhead_dive / portal_swarm.
+# -----------------------------------------------------------------------------------------------------
+combos:
+  max-total-multiplier: 2.5
+  chat-announce: false
+  list:
+    branded-dive:
+      mark: NULL_BRAND
+      sources: [arrowhead_dive, dive_strike, rain]
+      multiplier: 1.6
+      message: "<dark_purple><bold>BRANDED DIVE!</bold> <gray>x1.6"
+    branded-swarm:
+      mark: NULL_BRAND
+      sources: [swarm, vortex, cage, pincer, portal_swarm]
+      multiplier: 1.3
+      message: "<dark_purple>Brand resonates <gray>x1.3"
+    final-judgment:
+      mark: SENTENCED
+      sources: [judgment]
+      multiplier: 1.75
+      message: "<gold><bold>FINAL JUDGMENT!</bold> <gray>x1.75"
+    void-meteor:
+      mark: IN_NULL_FIELD
+      sources: [ashfall, rain]
+      multiplier: 1.3
+      message: "<white>VOID <dark_gray>IMPACT <gray>x1.3"
+    kindling:
+      mark: BURNING
+      sources: [ashfall, phoenix_burst]
+      multiplier: 1.2
+      message: "<gold>Kindling <gray>x1.2"
+    chained-swarm:
+      mark: SENTENCED
+      sources: [vortex, cage, pincer]
+      multiplier: 1.25
+      message: "<gold>Nowhere to run <gray>x1.25"
+
+# -----------------------------------------------------------------------------------------------------
+#  Combat tag
+# -----------------------------------------------------------------------------------------------------
+combat-tag:
+  enabled: true
+  duration-seconds: 15
+  tag-on-pve: false                 # also tag when fighting mobs/units
+  kill-on-logout: true              # logging out while tagged kills you
+  block-ender-pearls: true
+  blocked-teleport-causes: [COMMAND]
+  blocked-commands: [spawn, home, homes, sethome, tpa, tpahere, tpaccept, tpyes, warp, warps, back, rtp, wild, tp, tpo, hub, lobby, ec, enderchest]
+
+# -----------------------------------------------------------------------------------------------------
+#  Kill messages: "<victim> was <VERB> by <killer>" (format in messages.yml -> kill.format)
+#  Lookup order: verbs.<ability or swarm key>  ->  factions.<id>.kill-verbs  ->  verbs.<ability set>  ->  default
+# -----------------------------------------------------------------------------------------------------
+kill-messages:
+  enabled: true
+  window-seconds: 10
+  style-vanilla-pvp: true
+  default: [SMASHED, WRECKED, DELETED, FOLDED]
+  pvp: [SMASHED, CLAPPED, BONKED, WRECKED, DESTROYED, DIFFED]
+  verbs:
+    swarm: [SWARMED, SHREDDED, DISASSEMBLED]
+    vortex: [SPUN OUT, SHREDDED, BLENDED]
+    cage: [CAGED, CRUSHED]
+    pincer: [PINCERED, FLANKED]
+    rain: [SKEWERED, PINNED]
+    dive_strike: [DIVEBOMBED, SKEWERED]
+    arrowhead_dive: [OBLITERATED, SPEARED, DIVEBOMBED]
+    portal_swarm: [CONSUMED, OVERRUN]
+    null_field: [NULLIFIED, VOIDED]
+    judgment: [JUDGED, GAVELED, SENTENCED TO DEATH]
+    ember_crest: [TORCHED, SCORCHED]
+    ashfall: [METEORED, INCINERATED, CRATERED]
+    phoenix_burst: [REBORN ON, SUPERNOVA'D]
+    combat_log: [EXECUTED FOR COMBAT LOGGING]
+    vexbots: [SWARMED]
+    null: [ERASED]
+    portal: [OVERRUN]
+    law: [ARRESTED]
+    cindercrest: [BURNED]
+
+# -----------------------------------------------------------------------------------------------------
+#  Faction units (real mobs with Paper pathfinding)
+# -----------------------------------------------------------------------------------------------------
+units:
+  aggro-range: 24
+  defend-range: 14
+  teleport-stragglers: true
+  max-per-faction: 120
+  max-total: 300
+  attack-monsters: true            # non-event factions also fight hostile mobs
+  grudge-seconds: 30               # players who hit a faction's units become targets for this long
+  call-for-help: {range: 14, max-helpers: 6}
+  crit-multiplier: 1.5
+  lifesteal-fraction: 0.3
+  rage-threshold: 0.4
+  retreat-threshold: 0.3
+  leader-bossbar-range: 48
+  building:
+    max-break-hardness: 6.0        # obsidian is 50, stone 1.5, deepslate 3
+    drop-broken-blocks: false
+    max-tracked-placed: 6000
+    never-break: [CHEST, BARREL, SHULKER_BOX, FURNACE, SMOKER, HOPPER, DISPENSER, DROPPER, BED, SIGN, SPAWNER, BEDROCK,
+                  END_PORTAL, END_GATEWAY, BEACON, ENDER_CHEST, LECTERN, JUKEBOX, BREWING_STAND, CRAFTER, DECORATED_POT,
+                  BOOKSHELF, SHELF, BARRIER, COMMAND_BLOCK, STRUCTURE, JIGSAW, REINFORCED_DEEPSLATE, VAULT, RESPAWN_ANCHOR,
+                  LODESTONE, CONDUIT, BANNER, HEAD, SKULL, ANVIL, ENCHANTING_TABLE, NETHER_PORTAL, OBSIDIAN, CHISELED]
+
+factions-settings:
+  focus-glow-ticks: 60
+
+# Faction armies. army: "template:weight". head: Minecraft username for a skin head, or WITHER_SKULL,
+# SKELETON_SKULL, ZOMBIE_HEAD, CREEPER_HEAD, CARVED_PUMPKIN, or "" for an armour helmet.
+factions:
+  "null":
+    name: "<gradient:#1A1A1A:#B14CFF><bold>Null</bold></gradient>"
+    color: "#8A2BE2"
+    icon: CRYING_OBSIDIAN
+    build-block: BLACKSTONE
+    leader: null_commander
+    army: ["null_soldier:5", "null_wraith:3", "null_breaker:2", "null_marksman:2"]
+    formation: WEDGE
+    spacing: 2.0
+    mode: DEFEND
+    attack-outsiders: false
+    kill-verbs: [NULLIFIED, ERASED, VOIDED]
+  jamatop:
+    name: "<gradient:#2ECC71:#A3FFB0><bold>Jamatop</bold></gradient>"
+    color: "#2ECC71"
+    icon: SLIME_BALL
+    build-block: MOSSY_COBBLESTONE
+    leader: jamatop_leader
+    army: ["jamatop_grunt:5", "jamatop_archer:3", "jamatop_builder:2"]
+    formation: GRID
+    spacing: 2.0
+    kill-verbs: [JAMMED, TOPPED, GOT JAMATOPPED]
+  law:
+    name: "<gradient:#FFD54A:#FFFFFF><bold>LAW</bold></gradient>"
+    color: "#FFD54A"
+    icon: GOLD_BLOCK
+    build-block: SMOOTH_QUARTZ
+    leader: law_judge
+    army: ["law_enforcer:5", "law_marshal:3", "law_warden:2"]
+    formation: DOUBLE_LINE
+    spacing: 2.0
+    kill-verbs: [ARRESTED, SENTENCED, BOOKED]
+  cindercrest:
+    name: "<gradient:#FF5A1F:#FFC371><bold>Cindercrest</bold></gradient>"
+    color: "#FF5A1F"
+    icon: MAGMA_BLOCK
+    build-block: BASALT
+    leader: cinder_warlord
+    army: ["cinder_brute:5", "cinder_archer:3", "cinder_imp:2"]
+    formation: WEDGE
+    spacing: 2.0
+    kill-verbs: [TORCHED, CREMATED, ASHED]
+  clownpierce:
+    name: "<gradient:#FF3355:#FFE14D:#33CCFF><bold>Clownpierce's Circus</bold></gradient>"
+    color: "#FF3355"
+    icon: CAKE
+    build-block: RED_WOOL
+    leader: clownpierce
+    army: ["clown:5", "clown_juggler:3", "clown_jester:2"]
+    formation: CHECKERBOARD
+    spacing: 2.0
+    kill-verbs: [CLOWNED, PRANKED, HONKED]
+  bat:
+    name: "<gradient:#2B2B2B:#7D7D7D><bold>BAT</bold></gradient>"
+    color: "#3A3A3A"
+    icon: BLACK_WOOL
+    build-block: COBBLED_DEEPSLATE
+    leader: bat_king
+    army: ["bat_swarmer:5", "bat_screecher:3", "bat_guard:2"]
+    formation: CIRCLE
+    spacing: 2.0
+    kill-verbs: [ECHOLOCATED, DRAINED, BAT-SWARMED]
+  invismafia:
+    name: "<gradient:#5E5E5E:#E0E0E0><bold>Invis Mafia</bold></gradient>"
+    color: "#7F7F7F"
+    icon: GLASS
+    build-block: TINTED_GLASS
+    leader: mafia_don
+    army: ["mafia_hitman:5", "mafia_gunner:3", "mafia_enforcer:2"]
+    formation: LINE
+    spacing: 2.0
+    kill-verbs: [WHACKED, CLIPPED, MADE AN OFFER THEY COULDN'T REFUSE]
+
+# Unit templates. entity: any mob type (ZOMBIE, HUSK, SKELETON, STRAY, WITHER_SKELETON, VEX, ...).
+# armor: NONE, LEATHER, CHAINMAIL, IRON, GOLDEN, DIAMOND, NETHERITE.  trail: a particle name or "".
+# traits: CRIT STRAFE LEAP RETREAT KITE BLINK ORBIT FLICKER SUMMON RAGE LIFESTEAL BUILDER BREAKER
+#         DARKNESS BLIND SLOW NAUSEA FIRE CHAOS INVISIBLE LAUGH FIRE_ARROWS (on-hit: DARKNESS..CHAOS)
+templates:
+  # ---- Null
+  null_soldier:
+    name: "Null Soldier"
+    entity: ZOMBIE
+    health: 28
+    damage: 5
+    speed: 0.27
+    weapon: IRON_SWORD
+    armor: LEATHER
+    armor-color: "#141414"
+    trail: SQUID_INK
+    traits: [CRIT, STRAFE, DARKNESS, RETREAT]
+  null_breaker:
+    name: "Null Breaker"
+    entity: HUSK
+    health: 30
+    damage: 4
+    speed: 0.25
+    weapon: IRON_PICKAXE
+    armor: LEATHER
+    armor-color: "#222222"
+    traits: [BREAKER, BUILDER, CRIT]
+  null_wraith:
+    name: "Wraith"
+    entity: VEX
+    health: 14
+    damage: 4
+    weapon: IRON_SWORD
+    armor: NONE
+    trail: REVERSE_PORTAL
+    traits: [ORBIT, BLINK, DARKNESS, FLICKER]
+  null_marksman:
+    name: "Null Marksman"
+    entity: SKELETON
+    health: 22
+    damage: 4
+    speed: 0.25
+    weapon: BOW
+    armor: LEATHER
+    armor-color: "#101010"
+    head: WITHER_SKULL
+    traits: [KITE]
+  null_commander:
+    name: "Null Commander"
+    entity: WITHER_SKELETON
+    health: 160
+    damage: 10
+    speed: 0.3
+    scale: 1.4
+    weapon: NETHERITE_SWORD
+    armor: NETHERITE
+    head: WITHER_SKULL
+    trail: SQUID_INK
+    leader: true
+    summon: null_wraith
+    summon-count: 3
+    traits: [RAGE, SUMMON, BLINK, DARKNESS, CRIT, LIFESTEAL]
+  # ---- Jamatop
+  jamatop_grunt:
+    name: "Jamatop Grunt"
+    entity: ZOMBIE
+    health: 24
+    damage: 5
+    speed: 0.27
+    weapon: IRON_AXE
+    armor: CHAINMAIL
+    traits: [CRIT, LEAP]
+  jamatop_archer:
+    name: "Jamatop Archer"
+    entity: SKELETON
+    health: 20
+    damage: 4
+    weapon: BOW
+    armor: LEATHER
+    traits: [KITE]
+  jamatop_builder:
+    name: "Jamatop Builder"
+    entity: HUSK
+    health: 26
+    damage: 4
+    weapon: STONE_PICKAXE
+    armor: LEATHER
+    traits: [BUILDER, BREAKER]
+  jamatop_leader:
+    name: "Jamatop"
+    entity: ZOMBIE
+    health: 140
+    damage: 9
+    speed: 0.3
+    scale: 1.2
+    weapon: DIAMOND_SWORD
+    armor: DIAMOND
+    head: Jamatop
+    trail: HAPPY_VILLAGER
+    leader: true
+    summon: jamatop_grunt
+    summon-count: 2
+    traits: [RAGE, LEAP, CRIT, SUMMON]
+  # ---- LAW
+  law_enforcer:
+    name: "Enforcer"
+    entity: ZOMBIE
+    health: 30
+    damage: 5
+    speed: 0.27
+    weapon: IRON_SWORD
+    armor: GOLDEN
+    traits: [STRAFE, CRIT, SLOW]
+  law_marshal:
+    name: "Marshal"
+    entity: SKELETON
+    health: 22
+    damage: 5
+    weapon: BOW
+    armor: GOLDEN
+    traits: [KITE]
+  law_warden:
+    name: "Warden of Law"
+    entity: HUSK
+    health: 32
+    damage: 4
+    weapon: GOLDEN_PICKAXE
+    armor: IRON
+    traits: [BUILDER, BREAKER]
+  law_judge:
+    name: "High Judge"
+    entity: ZOMBIE
+    health: 150
+    damage: 9
+    speed: 0.28
+    scale: 1.3
+    weapon: GOLDEN_AXE
+    armor: GOLDEN
+    trail: END_ROD
+    leader: true
+    summon: law_enforcer
+    summon-count: 2
+    traits: [RAGE, SLOW, SUMMON, CRIT]
+  # ---- Cindercrest
+  cinder_brute:
+    name: "Cinder Brute"
+    entity: HUSK
+    health: 30
+    damage: 6
+    speed: 0.27
+    weapon: IRON_AXE
+    armor: LEATHER
+    armor-color: "#FF5A1F"
+    trail: FLAME
+    traits: [FIRE, LEAP, CRIT]
+  cinder_archer:
+    name: "Ember Archer"
+    entity: SKELETON
+    health: 20
+    damage: 4
+    weapon: BOW
+    armor: LEATHER
+    armor-color: "#B33A10"
+    trail: SMALL_FLAME
+    traits: [KITE, FIRE_ARROWS]
+  cinder_imp:
+    name: "Cinder Imp"
+    entity: VEX
+    health: 12
+    damage: 4
+    weapon: GOLDEN_SWORD
+    armor: NONE
+    trail: FLAME
+    traits: [ORBIT, FIRE]
+  cinder_warlord:
+    name: "Cinder Warlord"
+    entity: HUSK
+    health: 160
+    damage: 10
+    speed: 0.3
+    scale: 1.5
+    weapon: NETHERITE_AXE
+    armor: NETHERITE
+    trail: FLAME
+    leader: true
+    traits: [RAGE, FIRE, LEAP, LIFESTEAL]
+  # ---- Clownpierce
+  clown:
+    name: "Clown"
+    entity: ZOMBIE
+    health: 22
+    damage: 4
+    speed: 0.3
+    weapon: STICK
+    armor: LEATHER
+    armor-color: "#FF3355"
+    trail: NOTE
+    traits: [CHAOS, LAUGH, LEAP, NAUSEA]
+  clown_juggler:
+    name: "Juggler"
+    entity: SKELETON
+    health: 20
+    damage: 4
+    weapon: BOW
+    armor: LEATHER
+    armor-color: "#FFE14D"
+    traits: [KITE, LAUGH, CHAOS]
+  clown_jester:
+    name: "Jester"
+    entity: VEX
+    health: 12
+    damage: 3
+    weapon: STICK
+    armor: NONE
+    trail: NOTE
+    traits: [ORBIT, CHAOS, LAUGH]
+  clownpierce:
+    name: "Clownpierce"
+    entity: ZOMBIE
+    health: 150
+    damage: 8
+    speed: 0.32
+    scale: 1.25
+    weapon: TRIDENT
+    armor: LEATHER
+    armor-color: "#33CCFF"
+    head: Clownpierce
+    trail: NOTE
+    leader: true
+    summon: clown
+    summon-count: 3
+    traits: [RAGE, CHAOS, LAUGH, BLINK, SUMMON, NAUSEA]
+  # ---- BAT
+  bat_swarmer:
+    name: "Bat Swarmer"
+    entity: VEX
+    health: 12
+    damage: 3
+    scale: 0.75
+    weapon: IRON_SWORD
+    armor: NONE
+    trail: SMOKE
+    traits: [ORBIT, BLIND, FLICKER]
+  bat_screecher:
+    name: "Screecher"
+    entity: VEX
+    health: 16
+    damage: 4
+    weapon: IRON_SWORD
+    armor: NONE
+    trail: SMOKE
+    traits: [BLINK, BLIND]
+  bat_guard:
+    name: "Bat Guard"
+    entity: ZOMBIE
+    health: 26
+    damage: 5
+    weapon: STONE_SWORD
+    armor: LEATHER
+    armor-color: "#1E1E1E"
+    traits: [STRAFE, BLIND, CRIT]
+  bat_king:
+    name: "Bat King"
+    entity: VEX
+    health: 120
+    damage: 8
+    scale: 2.0
+    weapon: NETHERITE_SWORD
+    armor: NONE
+    trail: LARGE_SMOKE
+    leader: true
+    summon: bat_swarmer
+    summon-count: 4
+    traits: [RAGE, ORBIT, BLIND, SUMMON]
+  # ---- Invis Mafia (invisible bodies: only their weapons are seen)
+  mafia_hitman:
+    name: "Hitman"
+    entity: ZOMBIE
+    health: 22
+    damage: 6
+    speed: 0.3
+    weapon: IRON_SWORD
+    armor: NONE
+    traits: [INVISIBLE, CRIT, STRAFE, BLINK]
+  mafia_gunner:
+    name: "Gunner"
+    entity: SKELETON
+    health: 20
+    damage: 5
+    weapon: CROSSBOW
+    armor: NONE
+    traits: [INVISIBLE, KITE]
+  mafia_enforcer:
+    name: "Muscle"
+    entity: HUSK
+    health: 30
+    damage: 6
+    weapon: NETHERITE_AXE
+    armor: NONE
+    traits: [INVISIBLE, LEAP, BREAKER]
+  mafia_don:
+    name: "The Don"
+    entity: ZOMBIE
+    health: 140
+    damage: 9
+    speed: 0.3
+    scale: 1.2
+    weapon: NETHERITE_SWORD
+    armor: NONE
+    head: CARVED_PUMPKIN
+    leader: true
+    summon: mafia_hitman
+    summon-count: 2
+    traits: [FLICKER, BLINK, RAGE, SUMMON, LIFESTEAL]
+
+# -----------------------------------------------------------------------------------------------------
+#  Battles (GUI battles page and /uss battle)
+# -----------------------------------------------------------------------------------------------------
+battles:
+  gap: 22                    # distance between the two armies
+  distance-in-front: 18      # battle centre in front of whoever starts it
+  max-size: 60
+  default-size: 10
+  cleanup-after-seconds: 20  # survivors are removed this long after the victory announcement
+  announce-range: 160
+  presets: ["null:law", "clownpierce:law", "null:clownpierce", "cindercrest:bat", "invismafia:law", "jamatop:null"]
+
+# -----------------------------------------------------------------------------------------------------
+#  Server events (/uss event <portal|null|law|cinder> [stop])
+#  spawn-mode: FACTION = spawn that faction's units.
+#              COMMAND = run command.command for every spawn (VexBot compatibility); placeholders
+#                        {x} {y} {z} {world} {target} (+ {bx} {by} {bz} {n} {starter}). Whatever entity the
+#                        command spawns is captured and pulled to the spawn point.
+# -----------------------------------------------------------------------------------------------------
+events:
+  broadcast-scope: WORLD     # WORLD or SERVER: who sees titles and the boss bar
+  bossbar-range: 0           # 0 = everyone in scope, otherwise only players within this many blocks
+  max-concurrent: 2
+  portal-invasion:
+    enabled: true
+    name: "<gradient:#3B0A57:#B14CFF><bold>PORTAL INVASION"
+    bossbar-color: PURPLE
+    duration-seconds: 120
+    faction: "null"
+    spawn-mode: FACTION
+    max-alive: 40
+    spawn-interval-ticks: 40
+    spawn-chance-per-portal: 0.25
+    commanders: 1
+    commander-at-percent: 40
+    units-build: true
+    units-break: true
+    restore-world-after: true
+    despawn-on-end: true
+    target-range: 64
+    portals:
+      radius: 40
+      max-portals: 60
+      portals-per-wave: 3
+      wave-interval-ticks: 10
+      min-height-above-ground: 2
+      max-height-above-ground: 18
+      min-spacing: 4
+      close-per-step: 2
+      allow-teleport: false
+      protect-blocks: true
+    command:
+      command: ""              # e.g. "vexbot spawn null{n} {x} {y} {z} {world}" - check VexBot's real syntax
+      run-as: CONSOLE          # CONSOLE or PLAYER (nearest player runs it)
+      pull-spawned-to-spawn-point: true
+      capture-window-ticks: 5
+  null-outbreak:
+    enabled: true
+    name: "<gradient:#000000:#FFFFFF><bold>NULL OUTBREAK"
+    bossbar-color: WHITE
+    theme-color: "#1A1A1A"
+    duration-seconds: 120
+    faction: "null"
+    spawn-mode: FACTION
+    max-alive: 40
+    spawn-radius-min: 16
+    spawn-radius-max: 32
+    wave-interval-seconds: 8
+    units-per-wave: 6
+    leader-at-percent: 50
+    units-build: true
+    units-break: true
+    restore-world-after: true
+    despawn-on-end: true
+    target-range: 64
+    strikes: {type: NULL_FIELD, interval-seconds: 7, per-strike: 2, range: 48}
+    command: {command: "", run-as: CONSOLE, pull-spawned-to-spawn-point: true, capture-window-ticks: 5}
+  law-crackdown:
+    enabled: true
+    name: "<gradient:#FFD54A:#FFFFFF><bold>LAW CRACKDOWN"
+    bossbar-color: YELLOW
+    theme-color: "#FFD54A"
+    duration-seconds: 120
+    faction: law
+    spawn-mode: FACTION
+    max-alive: 40
+    spawn-radius-min: 16
+    spawn-radius-max: 32
+    wave-interval-seconds: 8
+    units-per-wave: 6
+    leader-at-percent: 50
+    units-build: true
+    units-break: false
+    restore-world-after: true
+    despawn-on-end: true
+    target-range: 64
+    strikes: {type: JUDGMENT, interval-seconds: 8, per-strike: 2, range: 48}
+    command: {command: "", run-as: CONSOLE, pull-spawned-to-spawn-point: true, capture-window-ticks: 5}
+  cindercrest-firestorm:
+    enabled: true
+    name: "<gradient:#FF5A1F:#FFC371><bold>CINDERCREST FIRESTORM"
+    bossbar-color: RED
+    theme-color: "#FF5A1F"
+    duration-seconds: 120
+    faction: cindercrest
+    spawn-mode: FACTION
+    max-alive: 40
+    spawn-radius-min: 16
+    spawn-radius-max: 32
+    wave-interval-seconds: 8
+    units-per-wave: 6
+    leader-at-percent: 50
+    units-build: false
+    units-break: true
+    restore-world-after: true
+    despawn-on-end: true
+    target-range: 64
+    strikes: {type: ASHFALL, interval-seconds: 6, per-strike: 2, range: 48}
+    command: {command: "", run-as: CONSOLE, pull-spawned-to-spawn-point: true, capture-window-ticks: 5}
