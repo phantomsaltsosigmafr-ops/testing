@@ -88,7 +88,10 @@ public final class Settings {
     public final String totemName;
     public final List<String> totemLore;
     public final String totemItemModel;
-    public final boolean totemGlint;
+    /** Null = vanilla shimmer (on when enchanted); true/false forces it. */
+    public final Boolean totemGlint;
+    public final List<String> totemEnchants;
+    public final boolean totemMatchName;
     public final int totemKillRadius;
     public final double totemWaveSpeed;
     public final boolean totemClosePortals;
@@ -144,10 +147,12 @@ public final class Settings {
         frame = weighted(po.getStringList("frame"), log);
 
         ConfigurationSection to = section(c, "totem");
-        totemName = to.getString("name", "<!italic><dark_purple>Totem of Null");
+        totemName = to.getString("name", "<aqua>The Totem Of Null");
         totemLore = to.getStringList("lore");
         totemItemModel = to.getString("item-model", "");
-        totemGlint = to.getBoolean("glint", true);
+        totemGlint = to.isBoolean("glint") ? Boolean.valueOf(to.getBoolean("glint")) : null;
+        totemEnchants = to.isList("enchantments") ? to.getStringList("enchantments") : List.of("vanishing_curse:1");
+        totemMatchName = to.getBoolean("match-by-name", true);
         totemKillRadius = Math.max(0, to.getInt("kill-radius", 0));
         totemWaveSpeed = Math.max(0.5, to.getDouble("wave-blocks-per-tick", 2.5));
         totemClosePortals = to.getBoolean("close-portals", false);

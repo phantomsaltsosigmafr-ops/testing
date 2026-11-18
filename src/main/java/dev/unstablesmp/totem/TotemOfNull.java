@@ -8,6 +8,10 @@ import dev.unstablesmp.portal.SpawnCommand;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -44,16 +48,21 @@ public final class TotemOfNull implements Listener {
         return invasions.settings();
     }
 
-    /** A fresh Totem of Null. */
+    /**
+     * A fresh Totem of Null, made exactly like a hand-made one: a totem of undying with the configured name (aqua
+     * "The Totem Of Null", italic like any renamed item) and Curse of Vanishing, nothing else - no lore, no hidden tag.
+     */
     public ItemStack create(int amount) {
         ItemStack item = new ItemStack(Material.TOTEM_OF_UNDYING, Math.max(1, Math.min(64, amount)));
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Text.mm(s().totemName));
-        List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
-        for (String line : s().totemLore) lore.add(Text.mm(line));
-        meta.lore(lore);
-        meta.getPersistentDataContainer().set(key, PersistentDataType.BYTE, (byte) 1);
-        meta.setEnchantmentGlintOverride(s().totemGlint);
+        if (!s().totemLore.isEmpty()) {
+            List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
+            for (String line : s().totemLore) lore.add(Text.mm(line));
+            meta.lore(lore);
+        }
+        for (Map.Entry<Enchantment, Integer> en : enchants().entrySet()) meta.addEnchant(en.getKey(), en.getValue(), true);
+        if (s().totemGlint != null) meta.setEnchantmentGlintOverride(s().totemGlint);
         if (!s().totemItemModel.isBlank()) {
             NamespacedKey model = NamespacedKey.fromString(s().totemItemModel.trim());
             if (model != null) {
@@ -68,10 +77,46 @@ public final class TotemOfNull implements Listener {
         return item;
     }
 
+    /** The configured enchantments ("vanishing_curse:1"), resolved against the server's registry. */
+    private Map<Enchantment, Integer> enchants() {
+        Map<Enchantment, Integer> out = new java.util.LinkedHashMap<>();
+        var registry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
+        for (String raw : s().totemEnchants) {
+            String[] p = raw.trim().toLowerCase(java.util.Locale.ROOT).split(":");
+            String id = p.length >= 2 && p[0].equals("minecraft") ? p[1] : p[0];
+            String lvl = p.length >= 2 && !p[0].equals("minecraft") ? p[1] : p.length >= 3 ? p[2] : "1";
+            Enchantment en = registry.get(NamespacedKey.minecraft(id));
+            if (en == null) {
+                plugin.getLogger().warning("config totem.enchantments: unknown enchantment '" + raw + "'");
+                continue;
+            }
+            int level;
+            try {
+                level = Math.max(1, Integer.parseInt(lvl));
+            } catch (NumberFormatException ex) {
+                level = 1;
+            }
+            out.put(en, level);
+        }
+        return out;
+    }
+
+    /**
+     * A Totem of Null is a totem of undying named like the configured name (same text) that carries the configured
+     * enchantments, so one made with /give works too. Vanilla anvils can't colour names or put a curse on a totem, so
+     * players can't forge one. Totems from older versions of this plugin (tagged) still count.
+     */
     public boolean is(ItemStack item) {
         if (item == null || item.getType() != Material.TOTEM_OF_UNDYING || !item.hasItemMeta()) return false;
-        Byte b = item.getItemMeta().getPersistentDataContainer().get(key, PersistentDataType.BYTE);
-        return b != null && b == 1;
+        ItemMeta meta = item.getItemMeta();
+        Byte b = meta.getPersistentDataContainer().get(key, PersistentDataType.BYTE);
+        if (b != null && b == 1) return true;
+        if (!s().totemMatchName || !meta.hasDisplayName()) return false;
+        String want = PlainTextComponentSerializer.plainText().serialize(Text.mm(s().totemName)).trim();
+        String have = PlainTextComponentSerializer.plainText().serialize(meta.displayName()).trim();
+        if (!want.equalsIgnoreCase(have)) return false;
+        for (Map.Entry<Enchantment, Integer> en : enchants().entrySet()) if (!meta.hasEnchant(en.getKey())) return false;
+        return true;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

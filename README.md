@@ -40,7 +40,7 @@ This plugin only ever *runs* `/vexbot`. It never registers it.
 
 ## The Totem of Null
 
-`/uss totem [player] [amount]` gives it.
+`/uss totem [player] [amount]` gives it. It looks exactly like a hand-made one: a totem of undying named **The Totem Of Null** in aqua (italic, like any renamed item) with **Curse of Vanishing**, and nothing else on it. Any totem with that name and that curse counts, including one made with `/give`. Vanilla anvils can't colour a name or curse a totem, so players can't forge one.
 
 When it pops:
 1. Your life is saved, with the normal totem animation.
@@ -90,7 +90,7 @@ You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 dura
 |---|---|
 | `spawn` | The command(s) run per pour. Default `vexbot nullportalspawn {x} {y} {z} {count}`. Placeholders: `{x} {y} {z} {xd} {yd} {zd} {count} {world} {portal} {invasion} {facing} {yaw}`. Also run-as, count, interval, chance, alive cap, total cap, and how bots are recognised (`capture-radius`, `capture-seconds`) |
 | `invasion` | Radius, max portals, wave size and speed, height above ground, spacing, collapse speed, duration, optional storm, keep chunks loaded, `start-commands`/`end-commands`, and a one-off `leader` arrival part-way through |
-| `totem` | Name, lore, glint, optional `item-model` (resource pack, 1.21.4+), kill radius, wave speed, quiet time, close portals, extra kill commands |
+| `totem` | Name, lore, enchantments, `match-by-name`, optional glint override and `item-model` (resource pack, 1.21.4+), kill radius, wave speed, quiet time, close portals, extra kill commands |
 | `portal` | `build` (our floating portals on/off), `self-repair`, opening size (2×3 = the classic 4×5 portal) and frame blocks (weighted, e.g. `["OBSIDIAN:4", "CRYING_OBSIDIAN:1"]`) |
 | `effects` | Every particle and sound, one line each: `"PARTICLE count across up out speed [colour/block]"` and `"sound.key volume pitch"` |
 | `messages` | Command replies (MiniMessage) |
@@ -98,7 +98,7 @@ You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 dura
 ## Build
 
 ```bash
-./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.0.0.jar
+./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.1.0.jar
 ./gradlew runServer  # local Paper 1.21.11 test server
 ```
 
@@ -109,7 +109,7 @@ GitHub Actions (`.github/workflows/release.yml`) builds every push. Pushes to th
 If `/plugins` doesn't list UnstableSMP:
 1. Make sure the jar in `plugins/` is about **70 KB** and ends in `.jar`. A tiny file means the download saved a web page instead; upload it with your host's file manager.
 2. Remove any older UnstableSMP jar, because two jars with the same plugin name clash.
-3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.0.0`, or a red error line explaining why it couldn't.
+3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.1.0`, or a red error line explaining why it couldn't.
 
 ## Tested
 
