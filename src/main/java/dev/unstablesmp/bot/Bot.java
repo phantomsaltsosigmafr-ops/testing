@@ -85,6 +85,11 @@ public final class Bot {
     // ---- consumables (decremented as used)
     public int gapples, healPots, speedPots, strengthPots, totems, pearls, windCharges, cobwebs, lava, rockets, arrows;
 
+    /** Tab-list identity (separate from the mannequin's entity UUID). */
+    public final java.util.UUID tabId = java.util.UUID.randomUUID();
+    public int ping;
+    public String skinSpec;
+
     public int kills;
     public boolean removed;
     public int spawnTick;

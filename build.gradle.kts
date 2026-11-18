@@ -1,5 +1,6 @@
 plugins {
     java
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.24"
     id("xyz.jpenilla.run-paper") version "3.1.0"
 }
 
@@ -7,13 +8,14 @@ group = "dev.unstablesmp"
 version = "1.0.0"
 
 repositories {
+    maven("https://repo.papermc.io/repository/maven-public/") // also proxies Maven Central
     mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://maven.enginehub.org/repo/")
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    // Paper dev bundle: the API plus Mojang-mapped server internals (only used for fake tab-list entries).
+    paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.14") {
         isTransitive = false
     }
@@ -36,6 +38,9 @@ dependencies {
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 }
+
+// Paper 1.20.5+ runs Mojang-mapped, so ship the Mojang-mapped jar as-is (no reobfuscation).
+paperweight.reobfArtifactConfiguration = io.papermc.paperweight.userdev.ReobfArtifactConfiguration.MOJANG_PRODUCTION
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"

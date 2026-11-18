@@ -18,6 +18,9 @@ public final class PlayerSessionListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent e) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (e.getPlayer().isOnline()) plugin.tabList().sendAll(e.getPlayer());
+        });
         if (plugin.pack().active() && plugin.pack().sendOnJoin()) {
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (e.getPlayer().isOnline()) plugin.pack().send(e.getPlayer());

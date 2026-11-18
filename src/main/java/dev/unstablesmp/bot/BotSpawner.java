@@ -100,6 +100,7 @@ public final class BotSpawner {
         });
         Bot b = new Bot(mgr.nextId(), body, g, tier, mode, load, team, display, plain, mem != null && mem.leader());
         b.spawnTick = org.bukkit.Bukkit.getCurrentTick();
+        b.skinSpec = skinSpec;
         b.cooldownFull = BotLoadout.cooldownTicks(load.primary(mode));
         b.lookYaw = r.at.getYaw();
         b.moveYaw = r.at.getYaw();

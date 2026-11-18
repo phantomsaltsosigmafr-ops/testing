@@ -21,7 +21,7 @@ All commands live under **`/uss`**. The plugin never registers `/vexbot` or `/ve
 ## File tree
 
 ```
-build.gradle.kts            Paper API 1.21.11, run-paper, WorldGuard (compileOnly), JUnit
+build.gradle.kts            Paper 1.21.11 dev bundle (paperweight-userdev, Mojang mappings), run-paper, WorldGuard (compileOnly), JUnit
 settings.gradle.kts
 gradlew, gradle/wrapper/    Gradle 9.9.1 wrapper
 src/main/resources/
@@ -55,6 +55,7 @@ src/main/java/dev/unstablesmp/
     ai/       BotBrain, BotMovement, BotPathfinder (budgeted A*), BotCombat, Squad (organised NULL), Tactic +
               AxeTactic, MaceTactic, ElytraMaceTactic, UhcTactic, NethPotTactic, SpearTactic
     skin/     SkinService (user/texture/pack/default skins), NameGenerator (scrambled, ____X____, gamer), PackServer
+    tab/      TabList, NmsTabList (bots in the player list: batched player-info packets, tier pings, skin heads)
   kit/        Kit, KitService (kits.yml), DefaultKits (sword, axe, mace, elytra_mace, uhc, nethpot, spear, null, law, bandit)
   team/       TeamService (scoreboard teams for players + bots)
   map/        MapService (maps.yml: spawns, exits, regions, lobby, block links), MapLinkListener
@@ -71,6 +72,10 @@ You need JDK 21. The Gradle wrapper is included.
 ./gradlew build          # compiles, runs the tests, writes build/libs/UnstableSMP-1.0.0.jar
 ./gradlew runServer      # starts a local Paper 1.21.11 test server in ./run with the plugin loaded
 ```
+
+The build uses the Paper 1.21.11 dev bundle (paperweight-userdev), because the tab-list entries for bots are built from the server's own player-info packets. The first build downloads and sets up the bundle, which takes a few minutes; later builds are quick. The jar is Mojang-mapped, which Paper 1.21.11 loads directly.
+
+The jar is built for Paper 1.21.11. If a later Paper build changes the internals the tab list uses, the plugin logs one warning at startup and bots simply aren't listed; everything else keeps working.
 
 1. Copy `build/libs/UnstableSMP-1.0.0.jar` into your server's `plugins/` folder.
 2. *(Optional)* Install WorldGuard 7 (with WorldEdit). UnstableSMP finds it automatically.
@@ -227,7 +232,15 @@ Bots are 1.21.9+ **Mannequins**: real player models with skins, armour, held ite
 - Bots post vanilla-identical "joined the game" and "X was slain by Y" lines (the game's own translation keys) and chat taunts from their group's lines.
 - NULL names are obfuscated in chat too.
 - Players fighting bots get combat-tagged.
-- Bots are not added to the tab list, which would need packet-level fakes.
+- **Bots show in the tab list** like real players (`bots.tablist`):
+  - They show their coloured name (NULL stays scrambled), a ping that matches their tier (HT1 about 12 ms, LT6 about 190 ms) and drifts, with the odd lag spike, and a skin head.
+  - Bots added or removed in the same tick go out as one packet, so spawning 500 costs one packet per player. Players who join later get the whole list in batches of 150.
+  - Bots leave the list when they die or are cleared.
+  - `user:` skins get their real head icon, fetched once and cached. `texture:<value>:<signature>` skins are used as they are.
+  - Pack skins (the black NULL skin) only exist in the resource pack, so they can't be drawn as a tab head. To fix that, upload `plugins/UnstableSMP/skins/null.png` to mineskin.org and paste its `value:signature` under `bots.tablist.head-textures."pack:null"`.
+  - `max-listed` (400) caps the entries. The client draws only 80 anyway.
+  - Real players keep their normal place; group leaders sort to the top.
+  - Typing a name in chat tab-completes bot names too.
 
 ## Simulator setup (lobby + command blocks)
 
@@ -268,7 +281,7 @@ Bots are 1.21.9+ **Mannequins**: real player models with skins, armour, held ite
 | `templates` | Entity type, health, damage, speed, scale, weapon, armour tier and colour, head, trail particle, traits, summons |
 | `battles` | Gap, distance, max size, cleanup delay, presets (`null:law`, `clownpierce:law`, ...) |
 | `events` | Broadcast scope, boss-bar range, max concurrent, and per event: duration, faction, spawn-mode, waves, caps, strikes, portals, VexBot `command` |
-| `bots` | Max bots (1000), aggro and LOD ranges, regen, collisions, pathfinding budget, immersion messages, tier overrides, groups |
+| `bots` | Max bots (1000), aggro and LOD ranges, regen, collisions, pathfinding budget, tab list (`tablist`: on/off, max listed, ping range and drift, head textures), immersion messages, tier overrides, groups |
 | `teams` | Team list (name, colour, prefix, icon) and whether bots attack teamless players |
 | `resource-pack` | Built-in pack server (host, port), external URL, NULL skin colour and eyes |
 | `games` | Countdown and end delay |
@@ -309,6 +322,11 @@ Every spawn then runs that command, and whatever entity it spawns (caught via `E
 - **507 bots** (250 NULL + leaders vs 250 LAW + leaders), all fully ticking, at peak combat: **10.9-11.6 ms/tick average, 20.0 TPS**. The bot AI itself used about 0.6-1.5 ms/tick. NULL won in under 30 s.
 - **All 7 modes**, 12 HT1-LT2 bots vs 12 LT3-LT6 bots each, with 0 errors. The better tiers won: sword 8-1, mace 7-0, elytra mace 9-0, spear 7-2.
 - After stopping mid-battle and restarting there were no leftover mannequins.
+
+**Tab list check:** a protocol test client (node `minecraft-protocol`, 1.21.11) joined the test server.
+- With 35 NULL and LAW bots spawned it received every entry. Entries were removed as bots died and on `/uss bot clear`.
+- Joining with 201 bots already up delivered all 201 in 2 packets.
+- Pings were 8-290 ms. Names kept their colours, a `texture:` skin arrived with its entry, and nothing was kicked or logged an error.
 
 Bots set a hidden, harmless Luck effect. Paper's entity activation range would otherwise freeze bots with no player within 16 blocks.
 

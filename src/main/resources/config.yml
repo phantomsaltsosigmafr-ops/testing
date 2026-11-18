@@ -944,6 +944,17 @@ bots:
   pathfinding:
     node-budget-per-tick: 4000    # A* nodes all bots may expand per tick, combined
     max-nodes: 600                # per search
+  tablist:                        # bots show in the tab list like real players
+    enabled: true
+    max-listed: 400               # clients only draw 80 entries; more just costs bandwidth
+    ping-best: 12                 # HT1 ping (ms); tiers in between scale toward ping-worst
+    ping-worst: 190               # LT6 ping
+    ping-update-ticks: 100        # pings drift (and occasionally spike) like real connections
+    # Head icons. user: skins are looked up automatically and texture:<value>:<signature> skins are used as is.
+    # Pack skins (the black NULL skin) only exist in the resource pack, so the client can't draw them as a tab
+    # head; upload plugins/UnstableSMP/skins/null.png to mineskin.org and paste its "value:signature" here.
+    head-textures: {}
+    #  "pack:null": "ewogICJ0aW1lc3RhbXAiIDog...:Kx7d..."
   immersion:
     join-messages: true           # "<name> joined the game" when bots spawn (vanilla text)
     leave-messages: false

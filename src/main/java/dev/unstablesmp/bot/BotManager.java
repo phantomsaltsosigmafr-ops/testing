@@ -132,6 +132,7 @@ public final class BotManager implements Ticker.Tickable {
         bots.add(b);
         byEntity.put(b.body.getUniqueId(), b);
         takenNames.add(b.plainName);
+        plugin.tabList().add(b);
         b.lastX = b.body.getLocation().getX();
         b.lastZ = b.body.getLocation().getZ();
     }
@@ -154,6 +155,7 @@ public final class BotManager implements Ticker.Tickable {
         b.removed = true;
         byEntity.remove(b.body.getUniqueId());
         takenNames.remove(b.plainName);
+        plugin.tabList().remove(b);
         if (b.squad != null) b.squad.members.remove(b);
         plugin.teams().removeEntity(b.team, b.body);
         if (announce && leaveMessages) plugin.fakeChat().broadcast(plugin.fakeChat().leaveLine(b.name));
@@ -174,6 +176,7 @@ public final class BotManager implements Ticker.Tickable {
     }
 
     public void removeAll() {
+        plugin.tabList().clearAll();
         for (Bot b : bots) {
             b.removed = true;
             plugin.tracker().remove(b.body);

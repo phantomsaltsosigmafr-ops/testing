@@ -17,6 +17,8 @@ import dev.unstablesmp.bot.BotManager;
 import dev.unstablesmp.bot.BotSpawner;
 import dev.unstablesmp.bot.skin.PackServer;
 import dev.unstablesmp.bot.skin.SkinService;
+import dev.unstablesmp.bot.tab.NmsTabList;
+import dev.unstablesmp.bot.tab.TabList;
 import dev.unstablesmp.cine.CameraService;
 import dev.unstablesmp.cine.Cinematics;
 import dev.unstablesmp.cine.FakeChat;
@@ -102,6 +104,7 @@ public final class UnstableSMP extends JavaPlugin {
     private Cinematics cinematics;
     private SceneService scenes;
     private TempBlocks tempBlocks;
+    private TabList tabList = new TabList.Noop();
 
     @Override
     public void onLoad() {
@@ -157,6 +160,12 @@ public final class UnstableSMP extends JavaPlugin {
         cinematics = new Cinematics(this);
         scenes = new SceneService(this);
         tempBlocks = new TempBlocks();
+        try {
+            tabList = new NmsTabList(this);
+        } catch (Throwable t) {
+            tabList = new TabList.Noop();
+            getLogger().warning("Bots can't be shown in the tab list on this server build (" + t + ").");
+        }
 
         reloadAll();
         factions.loadMembers();
@@ -181,6 +190,7 @@ public final class UnstableSMP extends JavaPlugin {
         ticker.add(events);
         ticker.add(battles);
         ticker.add(bots);
+        ticker.add(tabList);
         ticker.add(games);
         ticker.add(tempBlocks);
         ticker.add(camera);
@@ -254,6 +264,7 @@ public final class UnstableSMP extends JavaPlugin {
         teams.reload(c.getConfigurationSection("teams"));
         pack.reload(c.getConfigurationSection("resource-pack"), messages.get("pack.prompt"));
         bots.reload(c.getConfigurationSection("bots"));
+        if (tabList instanceof NmsTabList nms) nms.reload(c.getConfigurationSection("bots.tablist"));
         tempBlocks.setMax(c.getInt("bots.max-temp-blocks", 600));
         maps.reload();
         games.reload(c.getConfigurationSection("games"));
@@ -320,6 +331,10 @@ public final class UnstableSMP extends JavaPlugin {
 
     public TempBlocks tempBlocks() {
         return tempBlocks;
+    }
+
+    public TabList tabList() {
+        return tabList;
     }
 
     public RegionGuard regions() {

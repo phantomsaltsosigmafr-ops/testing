@@ -103,3 +103,9 @@ All 10 tasks are complete. Verified on a headless Paper 1.21.11 server:
 Two bugs found and fixed during testing:
 - 1.21.11 spears crashed mannequins when "used", so the spear charge is now plugin-only.
 - Paper's activation range froze distant bots, so bots now carry a hidden Luck effect.
+
+Follow-up: bots in the tab list.
+- Bots now appear in the tab list, built from the server's own player-info packets (the build switched to the paperweight dev bundle for this).
+- Changes are batched to one packet per tick, and pings follow each bot's tier.
+- `user:` and `texture:` skins give a head icon, and `bots.tablist.head-textures` can add one for pack skins.
+- Checked with a protocol test client: entries add, remove, and arrive on join for 201 bots in 2 packets, with no errors.
