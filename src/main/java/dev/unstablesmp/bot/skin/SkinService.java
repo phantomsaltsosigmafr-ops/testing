@@ -9,8 +9,9 @@ import org.bukkit.profile.PlayerTextures;
 /**
  * Turns a skin spec into a mannequin profile.
  * <ul>
- *   <li>{@code pack:<id>} - a skin from the UnstableSMP resource pack (generated black NULL skin, or any PNG in
- *       plugins/UnstableSMP/skins). Add {@code :slim} for the slim model.</li>
+ *   <li>{@code pack:<id>} - a skin from plugins/UnstableSMP/skins (generated black NULL skin, or any PNG there). Worn
+ *       as its Mojang-signed copy when one exists ({@link SkinHeads}), otherwise through the resource pack. Add
+ *       {@code :slim} for the slim model.</li>
  *   <li>{@code user:<name>} - that Minecraft account's skin (resolved by the client).</li>
  *   <li>{@code texture:<base64>[:<signature>]} - a raw textures property (e.g. from MineSkin).</li>
  *   <li>{@code default:<steve|alex|ari|efe|kai|makena|noor|sunny|zuri>} - a built-in skin.</li>
@@ -18,9 +19,11 @@ import org.bukkit.profile.PlayerTextures;
  */
 public final class SkinService {
     private final PackServer pack;
+    private final SkinHeads heads;
 
-    public SkinService(PackServer pack) {
+    public SkinService(PackServer pack, SkinHeads heads) {
         this.pack = pack;
+        this.heads = heads;
     }
 
     /** Builds a profile; {@code fallback} is used when a pack skin can't be shown (pack disabled/missing). */
@@ -34,7 +37,16 @@ public final class SkinService {
             case "pack" -> {
                 boolean slim = value.toLowerCase(Locale.ROOT).endsWith(":slim");
                 String id = (slim ? value.substring(0, value.length() - 5) : value).toLowerCase(Locale.ROOT);
-                if (!pack.active() || !pack.hasSkin(id)) {
+                boolean packReady = pack.active() && pack.hasSkin(id);
+                SkinHeads.Texture signed = heads == null ? null : heads.texture(id);
+                if (signed != null && (heads.forBodies() || !packReady)) {
+                    // Mojang-signed copy: every client draws it, with or without the resource pack.
+                    ResolvableProfile.Builder b = ResolvableProfile.resolvableProfile().name(safeName)
+                            .addProperty(new ProfileProperty("textures", signed.value(), signed.signature()));
+                    if (slim) b.skinPatch(p -> p.model(PlayerTextures.SkinModel.SLIM));
+                    return b.build();
+                }
+                if (!packReady) {
                     return fallback == null || fallback.startsWith("pack:") ? builtin("steve", safeName, false) : profile(fallback, profileName, null);
                 }
                 return ResolvableProfile.resolvableProfile().name(safeName)

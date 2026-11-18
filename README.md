@@ -54,7 +54,8 @@ src/main/java/dev/unstablesmp/
               PvpMode, SpatialGrid
     ai/       BotBrain, BotMovement, BotPathfinder (budgeted A*), BotCombat, Squad (organised NULL), Tactic +
               AxeTactic, MaceTactic, ElytraMaceTactic, UhcTactic, NethPotTactic, SpearTactic
-    skin/     SkinService (user/texture/pack/default skins), NameGenerator (scrambled, ____X____, gamer), PackServer
+    skin/     SkinService (user/texture/pack/default skins), SkinHeads (signed copies of pack skins, MineSkin upload),
+              NameGenerator (scrambled, ____X____, gamer), PackServer
     tab/      TabList, NmsTabList (bots in the player list: batched player-info packets, tier pings, skin heads)
   kit/        Kit, KitService (kits.yml), DefaultKits (sword, axe, mace, elytra_mace, uhc, nethpot, spear, null, law, bandit)
   team/       TeamService (scoreboard teams for players + bots)
@@ -226,7 +227,11 @@ Bots are 1.21.9+ **Mannequins**: real player models with skins, armour, held ite
 - `texture:<base64>` uses a raw texture (e.g. from MineSkin).
 - `default:steve|alex|...` uses a built-in skin.
 - The black NULL skin is drawn in code (`resource-pack.null-skin`: colour, eyes). The pack is served by a built-in web server: set `resource-pack.host` to your public IP or domain and open `resource-pack.port`, or upload `pack/UnstableSMP-pack.zip` yourself and set `external-url`.
-- Without the pack, NULL bots fall back to `fallback-skin` and still wear their black-trimmed netherite.
+- **Signed skins** (`bots.signed-skins`):
+  - Every PNG in `skins/` is matched by its pixels to a Mojang-signed copy. The default NULL skin's copy is built in.
+  - Any other PNG (a custom skin, or a NULL skin recoloured through `resource-pack.null-skin`) is uploaded to mineskin.org once (unlisted) and cached in `skins/heads.yml`. Turn that off with `mineskin-upload: false`; an optional `mineskin-api-key` raises the limit of 10 uploads a minute.
+  - Bots wear the signed copy (`use-for-bodies: true`), so players who decline the resource pack, or servers that never set `resource-pack.host`, still see black NULL skins and black tab heads.
+  - Only a skin with no signed copy and no pack falls back to `fallback-skin`.
 
 **Immersion:**
 - Bots post vanilla-identical "joined the game" and "X was slain by Y" lines (the game's own translation keys) and chat taunts from their group's lines.
@@ -237,7 +242,7 @@ Bots are 1.21.9+ **Mannequins**: real player models with skins, armour, held ite
   - Bots added or removed in the same tick go out as one packet, so spawning 500 costs one packet per player. Players who join later get the whole list in batches of 150.
   - Bots leave the list when they die or are cleared.
   - `user:` skins get their real head icon, fetched once and cached. `texture:<value>:<signature>` skins are used as they are.
-  - Pack skins (the black NULL skin) only exist in the resource pack, so they can't be drawn as a tab head. To fix that, upload `plugins/UnstableSMP/skins/null.png` to mineskin.org and paste its `value:signature` under `bots.tablist.head-textures."pack:null"`.
+  - NULL bots get **black heads**. The client only draws a tab head from a Mojang-signed skin, so the plugin ships a signed copy of its default NULL skin (`skin-heads.yml`). The copy was made through MineSkin and checked against Mojang's key.
   - `max-listed` (400) caps the entries. The client draws only 80 anyway.
   - Real players keep their normal place; group leaders sort to the top.
   - Typing a name in chat tab-completes bot names too.
@@ -326,6 +331,7 @@ Every spawn then runs that command, and whatever entity it spawns (caught via `E
 **Tab list check:** a protocol test client (node `minecraft-protocol`, 1.21.11) joined the test server.
 - With 35 NULL and LAW bots spawned it received every entry. Entries were removed as bots died and on `/uss bot clear`.
 - Joining with 201 bots already up delivered all 201 in 2 packets.
+- With 12 NULL bots out, all 15 `pack:null` bots (with elites) arrived with the signed black texture. A new PNG dropped into `skins/` was uploaded, signed and cached about 2 s after `/uss reload`.
 - Pings were 8-290 ms. Names kept their colours, a `texture:` skin arrived with its entry, and nothing was kicked or logged an error.
 
 Bots set a hidden, harmless Luck effect. Paper's entity activation range would otherwise freeze bots with no player within 16 blocks.

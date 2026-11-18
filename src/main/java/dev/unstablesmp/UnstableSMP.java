@@ -16,6 +16,7 @@ import dev.unstablesmp.bot.BotListener;
 import dev.unstablesmp.bot.BotManager;
 import dev.unstablesmp.bot.BotSpawner;
 import dev.unstablesmp.bot.skin.PackServer;
+import dev.unstablesmp.bot.skin.SkinHeads;
 import dev.unstablesmp.bot.skin.SkinService;
 import dev.unstablesmp.bot.tab.NmsTabList;
 import dev.unstablesmp.bot.tab.TabList;
@@ -94,6 +95,7 @@ public final class UnstableSMP extends JavaPlugin {
     private KitService kits;
     private TeamService teams;
     private PackServer pack;
+    private SkinHeads skinHeads;
     private SkinService skins;
     private BotManager bots;
     private BotSpawner botSpawner;
@@ -150,7 +152,8 @@ public final class UnstableSMP extends JavaPlugin {
         kits = new KitService(getDataFolder(), getLogger());
         teams = new TeamService();
         pack = new PackServer(getDataFolder(), getLogger());
-        skins = new SkinService(pack);
+        skinHeads = new SkinHeads(this, getDataFolder(), getLogger());
+        skins = new SkinService(pack, skinHeads);
         bots = new BotManager(this);
         botSpawner = new BotSpawner(this, bots);
         maps = new MapService(getDataFolder(), getLogger());
@@ -166,6 +169,15 @@ public final class UnstableSMP extends JavaPlugin {
             tabList = new TabList.Noop();
             getLogger().warning("Bots can't be shown in the tab list on this server build (" + t + ").");
         }
+
+        skinHeads.onReady(id -> {
+            tabList.refreshPack(id);
+            for (dev.unstablesmp.bot.Bot b : bots.all()) { // bots already out switch to the signed skin too
+                if (b.valid() && skinHeads.forBodies() && id.equals(SkinHeads.packId(b.skinSpec))) {
+                    b.body.setProfile(skins.profile(b.skinSpec, b.plainName, b.group.fallbackSkin));
+                }
+            }
+        });
 
         reloadAll();
         factions.loadMembers();
@@ -227,6 +239,7 @@ public final class UnstableSMP extends JavaPlugin {
         if (bots != null) bots.removeAll();
         if (tempBlocks != null) tempBlocks.restoreAll();
         if (pack != null) pack.stop();
+        if (skinHeads != null) skinHeads.shutdown();
         if (events != null) events.stopAll();
         if (battles != null) battles.endAll();
         if (effects != null) effects.removeAll();
@@ -263,6 +276,7 @@ public final class UnstableSMP extends JavaPlugin {
         kits.reload();
         teams.reload(c.getConfigurationSection("teams"));
         pack.reload(c.getConfigurationSection("resource-pack"), messages.get("pack.prompt"));
+        skinHeads.reload(c.getConfigurationSection("bots.signed-skins"));
         bots.reload(c.getConfigurationSection("bots"));
         if (tabList instanceof NmsTabList nms) nms.reload(c.getConfigurationSection("bots.tablist"));
         tempBlocks.setMax(c.getInt("bots.max-temp-blocks", 600));
@@ -291,6 +305,10 @@ public final class UnstableSMP extends JavaPlugin {
 
     public PackServer pack() {
         return pack;
+    }
+
+    public SkinHeads skinHeads() {
+        return skinHeads;
     }
 
     public SkinService skins() {

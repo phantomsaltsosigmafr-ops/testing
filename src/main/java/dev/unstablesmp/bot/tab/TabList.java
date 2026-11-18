@@ -18,6 +18,10 @@ public interface TabList extends Ticker.Tickable {
 
     boolean enabled();
 
+    /** Re-sends the entries of bots wearing {@code pack:<id>} (its signed head just became available). */
+    default void refreshPack(String id) {
+    }
+
     /** Used when server internals aren't available: bots simply aren't listed. */
     final class Noop implements TabList {
         @Override

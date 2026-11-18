@@ -950,11 +950,15 @@ bots:
     ping-best: 12                 # HT1 ping (ms); tiers in between scale toward ping-worst
     ping-worst: 190               # LT6 ping
     ping-update-ticks: 100        # pings drift (and occasionally spike) like real connections
-    # Head icons. user: skins are looked up automatically and texture:<value>:<signature> skins are used as is.
-    # Pack skins (the black NULL skin) only exist in the resource pack, so the client can't draw them as a tab
-    # head; upload plugins/UnstableSMP/skins/null.png to mineskin.org and paste its "value:signature" here.
+    # Head icons are automatic: user: skins are looked up, texture: skins are used as is, and pack: skins (the black
+    # NULL skin) use their signed copy (see signed-skins below). To force a head for a skin spec, paste a MineSkin
+    # "value:signature" here, e.g.  "pack:null": "ewogICJ0aW1lc3RhbXAiIDog...:Kx7d..."
     head-textures: {}
-    #  "pack:null": "ewogICJ0aW1lc3RhbXAiIDog...:Kx7d..."
+  signed-skins:                   # Mojang-signed copies of the PNGs in plugins/UnstableSMP/skins/
+    use-for-bodies: true          # bots wear the signed copy, so players without the resource pack see black NULL skins too
+    mineskin-upload: true         # a PNG with no signed copy yet (custom skin, recoloured NULL) is uploaded to mineskin.org
+                                  # once (unlisted) and cached in skins/heads.yml. The default NULL skin ships signed.
+    mineskin-api-key: ""          # optional; raises MineSkin's limit of 10 uploads a minute
   immersion:
     join-messages: true           # "<name> joined the game" when bots spawn (vanilla text)
     leave-messages: false
@@ -971,7 +975,7 @@ bots:
       color: "#1A1A1A"
       team: "null"
       skins: ["pack:null"]              # the generated all-black NULL skin (see resource-pack)
-      fallback-skin: "default:steve"    # used if the pack isn't served
+      fallback-skin: "default:steve"    # only if neither the signed copy nor the pack is available
       names: {style: SCRAMBLED, format: "<dark_gray><obf><name></obf>"}
       tier-weights: {HT1: 3, LT1: 4, HT2: 3}   # war machines
       modes: ["sword:4", "axe:3", "mace:2", "nethpot:1"]

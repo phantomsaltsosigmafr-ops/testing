@@ -9,6 +9,7 @@ import com.mojang.authlib.properties.PropertyMap;
 import dev.unstablesmp.UnstableSMP;
 import dev.unstablesmp.bot.Bot;
 import dev.unstablesmp.bot.skin.NameGenerator;
+import dev.unstablesmp.bot.skin.SkinHeads;
 import io.papermc.paper.adventure.PaperAdventure;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -192,6 +193,11 @@ public final class NmsTabList implements TabList {
         if (spec.regionMatches(true, 0, "texture:", 0, 8)) return parseTexture(spec.substring(8));
         Property configured = headTextures.get(spec.toLowerCase(Locale.ROOT));
         if (configured != null) return configured;
+        String pack = SkinHeads.packId(spec);
+        if (pack != null) {
+            SkinHeads.Texture t = plugin.skinHeads().texture(pack);
+            return t == null ? null : new Property("textures", t.value(), t.signature());
+        }
         String user = userSkin(b);
         return user == null ? null : textures.get(user);
     }
@@ -228,17 +234,30 @@ public final class NmsTabList implements TabList {
                 for (ProfileProperty pp : done.getProperties()) {
                     if (!pp.getName().equals("textures")) continue;
                     textures.put(user, new Property("textures", pp.getValue(), pp.getSignature()));
-                    List<UUID> ids = new ArrayList<>();
-                    for (Bot b : listed.values()) if (user.equals(userSkin(b))) ids.add(b.tabId);
-                    if (ids.isEmpty()) return;
-                    broadcast(new ClientboundPlayerInfoRemovePacket(ids));
-                    List<ClientboundPlayerInfoUpdatePacket.Entry> entries = new ArrayList<>();
-                    for (UUID id : ids) entries.add(entry(listed.get(id)));
-                    broadcast(new ClientboundPlayerInfoUpdatePacket(ADD, entries));
+                    resend(b -> user.equals(userSkin(b)));
                     return;
                 }
             });
         });
+    }
+
+    @Override
+    public void refreshPack(String id) {
+        resend(b -> id.equals(SkinHeads.packId(b.skinSpec)));
+    }
+
+    /** Removes and re-adds matching entries so clients pick up their new head texture. */
+    private void resend(java.util.function.Predicate<Bot> which) {
+        List<UUID> ids = new ArrayList<>();
+        List<ClientboundPlayerInfoUpdatePacket.Entry> entries = new ArrayList<>();
+        for (Bot b : listed.values()) {
+            if (!which.test(b)) continue;
+            ids.add(b.tabId);
+            entries.add(entry(b));
+        }
+        if (ids.isEmpty()) return;
+        broadcast(new ClientboundPlayerInfoRemovePacket(ids));
+        broadcast(new ClientboundPlayerInfoUpdatePacket(ADD, entries));
     }
 
     // ------------------------------------------------------------------ sending
