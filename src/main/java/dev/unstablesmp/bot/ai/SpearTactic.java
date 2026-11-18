@@ -6,7 +6,6 @@ import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mannequin;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.util.Vector;
 
 /**
@@ -28,7 +27,8 @@ public final class SpearTactic extends Tactic {
         if (b.kit.spear != null && dist > 4 && dist < 13 && now >= b.chargeCd && b.body.isOnGround() && roll(b.s.utility + 0.2)) {
             combat.unblock(b);
             combat.hold(b, b.kit.spear);
-            b.body.startUsingItem(EquipmentSlot.HAND);
+            // Note: no startUsingItem here: 1.21.11's vanilla kinetic-spear tick needs an attack_damage attribute
+            // that mannequins don't have. The charge and its speed-scaled damage are fully plugin-driven.
             b.phase = 1;
             b.phaseStart = now;
             b.moveYaw = BotMovement.yawTo(bl.getX(), bl.getZ(), tl.getX(), tl.getZ());
@@ -65,7 +65,6 @@ public final class SpearTactic extends Tactic {
         double dx = tl.getX() - l.getX(), dz = tl.getZ() - l.getZ(), dy = tl.getY() - l.getY();
         double dist = Math.sqrt(dx * dx + dz * dz + dy * dy);
         if (dist < 1.6 + t.getWidth() * 0.5) {
-            m.clearActiveItem();
             double dmg = BotLoadout.damage(b.kit.spear) + speed * 9;
             if (!roll(b.s.miss)) {
                 combat.hit(b, t, now, b.kit.spear, 1.0, dmg, "spear");
@@ -77,7 +76,6 @@ public final class SpearTactic extends Tactic {
             }
             end(b, now);
         } else if (now - b.phaseStart > 26 || b.stuckTicks > 6) {
-            m.clearActiveItem();
             end(b, now);
         }
         return true;

@@ -18,12 +18,26 @@ help: |-
   <light_purple>/uss formation <name> [player]</light_purple> <gray>- set a swarm formation
   <light_purple>/uss event <portal|null|law|cinder> [stop]</light_purple> <gray>- server events
   <light_purple>/uss battle <factionA> <factionB> [size]</light_purple> <gray>- faction battle
-  <light_purple>/uss reload</light_purple> <gray>| <light_purple>/uss status</light_purple>
+  <light_purple>/uss bot spawn <count> [group] [mode] [tier]</light_purple> <gray>- player PvP bots (HT1..LT6)
+  <light_purple>/uss duel [player] [mode] [tier]</light_purple> <gray>- 1v1 a bot
+  <light_purple>/uss kit | team | map | lobby | game</light_purple> <gray>- simulator setup (command-block friendly)
+  <light_purple>/uss cam | scene | fake | fx</light_purple> <gray>- cinematics and scripted recordings
+  <light_purple>/uss reload</light_purple> <gray>| <light_purple>/uss status</light_purple> <gray>| <light_purple>/uss pack</light_purple>
 usage:
   give: "<prefix><red>Usage: /uss give <ability|set|all> [player]"
   formation: "<prefix><red>Usage: /uss formation <name> [player]"
   event: "<prefix><red>Usage: /uss event <portal|null|law|cinder> [stop|player]  or  /uss event stop"
   battle: "<prefix><red>Usage: /uss battle <factionA> <factionB> [size] [player]  or  /uss battle stop"
+  bot: "<prefix><red>Usage: /uss bot spawn <count> [group] [mode] [tier] [team=] [at=here|map:spawn|@p|x,y,z] [target=@p] [kit=] [leaders=false] | clear [group|team|map|all] | list | target <group> <@p> | untarget [group] | march <group> <where> | tp <group> <where>"
+  duel: "<prefix><red>Usage: /uss duel [player] [mode] [tier] [group]"
+  kit: "<prefix><red>Usage: /uss kit give <kit> [@targets] | save <name> | delete <name> | list"
+  team: "<prefix><red>Usage: /uss team join <team> [@targets] | leave [@targets] | gui [@targets] | list"
+  map: "<prefix><red>Usage: /uss map create|delete|setspawn|addspawn|setexit|pos1|pos2 <map> [key] | setlobby | tp <map> [spawn] [@targets] [kit=] [team=] | link <map> [spawn] [kit=] [team=] | unlink | list"
+  game: "<prefix><red>Usage: /uss game start <waves|battle|tdm|ffa|boss|duel> <map> [group=] [b=] [count=] [waves=] [inc=] [mode=] [tier=] [kit=] [team=] [players=@a] | stop [map|all] | list"
+  cam: "<prefix><red>Usage: /uss cam add [ticks] | undo | clear | save <name> | play <name> [@targets] | stop [@targets] | delete <name> | list"
+  scene: "<prefix><red>Usage: /uss scene play <name> [@targets] | stop | list | reload"
+  fake: "<prefix><red>Usage: /uss fake chat <name> <message> | join <name> | leave <name> | death <victim> [killer]"
+  fx: "<prefix><red>Usage: /uss fx fade <out|in> [@targets] [ticks] | shake [@targets] [ticks] [strength] | slowmo <rate> [ticks] | reset | title <@targets> <title> [| subtitle]"
 status:
   header: "<gradient:#7A2BD9:#C77DFF><bold>UnstableSMP status</bold></gradient>"
 
@@ -133,7 +147,92 @@ event:
   end-subtitle: "<gray>is over."
   ended: "<prefix><event> <gray>has ended."
 
+bad-selector: "<prefix><red>Bad selector: <white><selector>"
+
+bot:
+  spawned: "<prefix>Spawned <white><count></white> <white><group></white> bots <dark_gray>(<total> alive)"
+  cleared: "<prefix>Removed <white><count></white> bots."
+  unknown-group: "<prefix><red>Unknown bot group: <white><group>"
+  no-location: "<prefix><red>Couldn't work out where to spawn them."
+  list-header: "<prefix>Bots alive: <white><count></white>/<max>"
+  targeted: "<prefix><white><count></white> bots are now hunting the target."
+  untargeted: "<prefix>Bots released their orders."
+  moved: "<prefix><white><count></white> bots are on the move."
+
+duel:
+  start: "<prefix>Duel! <bot> <gray>(<white><mode></white>, <white><tier></white>) is coming for you."
+
+kit:
+  given: "<prefix>Gave kit <white><kit></white> to <white><count></white> player(s)."
+  saved: "<prefix>Saved your inventory as kit <white><kit></white>."
+  deleted: "<prefix>Deleted kit <white><kit></white>."
+  unknown: "<prefix><red>Unknown kit: <white><kit>"
+  list: "<prefix>Kits: <white><kits>"
+
+team:
+  joined: "<prefix>You joined team <white><team></white>."
+  left: "<prefix>You left your team."
+  list: "<prefix>Teams: <white><teams>"
+
+map:
+  created: "<prefix>Created map <white><map></white> with a player spawn here. Add more with /uss map addspawn."
+  deleted: "<prefix>Deleted map <white><map></white>."
+  unknown: "<prefix><red>Unknown map: <white><map>"
+  no-spawn: "<prefix><red>Map <white><map></white> has no spawn for that."
+  spawn-set: "<prefix>Map <white><map></white>: spawn <white><key></white> now has <white><count></white> point(s)."
+  updated: "<prefix>Map <white><map></white>: <white><what></white> set."
+  lobby-set: "<prefix>Lobby set here."
+  linked: "<prefix>That <white><block></white> now sends players to <white><map></white>."
+  unlinked: "<prefix>Link removed."
+  link-failed: "<prefix><red>Look at a block (and use an existing map)."
+  list: "<prefix>Maps: <white><maps>"
+
+game:
+  already-running: "<prefix><red>A game is already running on <white><map></white>."
+  started: "<prefix>Started <white><type></white> on <white><map></white>."
+  stopped: "<gray>Game stopped"
+  stopped-count: "<prefix>Stopped <white><count></white> game(s)."
+  list: "<prefix>Running games: <white><games>"
+  countdown: "<yellow><bold><seconds>"
+  start-title: "<red><bold><type>"
+  start-subtitle: "<gray>on <white><map>"
+  wave-title: "<red><bold>WAVE <wave>"
+  wave-subtitle: "<white><count></white> <gray><group> incoming"
+  win: "<green><bold>VICTORY"
+  lose: "<red><bold>DEFEAT"
+  battle-won: "<gold><bold><winner> WINS"
+  ended: "<prefix>Game on <white><map></white> ended: <result>"
+  bar-countdown: "<white><type> <gray>starting..."
+  bar-waves: "<red>Wave <white><wave></white>/<waves> <dark_gray>» <gray><left> enemies left"
+  bar-battle: "<white><side_a></white> <gray><ca></gray> <dark_gray>vs</dark_gray> <gray><cb></gray> <white><side_b>"
+  bar-boss: "<red>Boss fight <dark_gray>» <gray><left> enemies left"
+  bar-generic: "<white><type> <dark_gray>» <gray><left> enemies left"
+
+cam:
+  added: "<prefix>Camera path has <white><count></white> keyframe(s)."
+  cleared: "<prefix>Camera keyframes cleared."
+  saved: "<prefix>Saved camera path <white><path></white>."
+  too-short: "<prefix><red>Add at least 2 keyframes first."
+  playing: "<prefix>Playing camera path <white><path></white>."
+  unknown: "<prefix><red>Unknown camera path: <white><path>"
+  deleted: "<prefix>Deleted camera path <white><path></white>."
+  list: "<prefix>Camera paths: <white><paths>"
+
+scene:
+  playing: "<prefix>Playing scene <white><scene></white>."
+  unknown: "<prefix><red>Unknown scene: <white><scene>"
+  stopped: "<prefix>Stopped <white><count></white> scene(s)."
+  list: "<prefix>Scenes: <white><scenes>"
+
+pack:
+  prompt: "UnstableSMP skins (the black NULL skin and custom bot skins)"
+  sent: "<prefix>Sent the skin pack to <white><count></white> player(s)."
+  inactive: "<prefix><red>The skin pack isn't being served (set resource-pack.host in config.yml)."
+  reloaded: "<prefix>Rebuilt the skin pack (<white><count></white> skins)."
+
 gui:
+  teams-title: "<white><bold>Pick your team"
+  bots-title: "<white><bold>Player Bots"
   main-title: "<dark_purple><bold>Unstable SMP Command"
   spawn-title: "<dark_purple><bold>Spawn Units"
   battle-title: "<red><bold>Battles"

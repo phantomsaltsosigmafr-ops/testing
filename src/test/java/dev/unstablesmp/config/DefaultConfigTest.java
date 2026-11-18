@@ -115,5 +115,6 @@ class DefaultConfigTest {
     private static final List<String> PLACEHOLDERS = List.of("prefix", "player", "count", "ability", "faction", "formation", "seconds",
             "verb", "victim", "killer", "combo", "target", "caster", "players", "swarms", "effects", "hp", "max", "owner", "spawned",
             "asked", "x", "y", "z", "mode", "leader", "side_a", "side_b", "size", "winner", "loser", "event", "starter", "time", "alive",
-            "main", "sneak");
+            "main", "sneak", "selector", "group", "total", "bot", "tier", "kit", "kits", "team", "teams", "map", "key", "what",
+            "block", "maps", "type", "games", "wave", "waves", "left", "ca", "cb", "path", "paths", "scene", "scenes", "result");
 }

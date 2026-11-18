@@ -8,6 +8,12 @@ A Paper **1.21.11** plugin (Java 21) with:
 - **Battles** (e.g. Null vs LAW) and **four server events** (Portal Invasion, Null Outbreak, Law Crackdown, Cindercrest Firestorm). The events also support VexBot through `spawn-mode: COMMAND`.
 - **Server polish:** combat tag (`COMBAT: 15`), styled kill messages, WorldGuard support, and every number in `config.yml` / every text in `messages.yml`.
 
+- **Simulator toolkit (v2):**
+  - **Player-looking PvP bots** (VexBot-style, 500-1000 at once) in 12 skill tiers from **HT1 to LT6**, fighting with sword, axe, mace, elytra mace, UHC, netherite pot or spear
+  - **NULL** as an organised war machine led by **JamatoP**, with black skins and scrambled names
+  - **LAW** led by King LettuceK with randomised skill
+  - kits, teams, maps with note-block lobby links, command-block games, and cinematic and scripted-recording tools
+
 All commands live under **`/uss`**. The plugin never registers `/vexbot` or `/vex`.
 
 ---
@@ -18,11 +24,11 @@ All commands live under **`/uss`**. The plugin never registers `/vexbot` or `/ve
 build.gradle.kts            Paper API 1.21.11, run-paper, WorldGuard (compileOnly), JUnit
 settings.gradle.kts
 gradlew, gradle/wrapper/    Gradle 9.9.1 wrapper
-reference/                  the original WIP code (outside src/, never compiled or shipped)
 src/main/resources/
   plugin.yml                permissions, softdepend WorldGuard
   config.yml                every number: swarm, abilities, combos, factions, templates, events, caps
   messages.yml              all text, MiniMessage
+  scenes/*.yml              example scripted scenes (null_invasion, law_arrest)
 src/main/java/dev/unstablesmp/
   UnstableSMP.java          wires the services; onLoad (WorldGuard flags) / onEnable / onDisable / reload
   core/       Ticker (the ONE repeating task), EntityTracker (caps, tags, chunk-unload cleanup, ghost sweep),
@@ -43,7 +49,17 @@ src/main/java/dev/unstablesmp/
   gui/        GuiService, Menu, Icons, MainMenu, SpawnMenu, BattleMenu, EventsMenu, AbilitiesMenu, FactionHorn
   event/      EventManager, ServerEvent, PortalInvasionEvent, Portal, FactionWaveEvent, EventType,
               PortalBlockRegistry, CommandSpawnCapture (VexBot COMMAND mode)
-  command/    UssCommand (/uss + tab completion)
+  command/    UssCommand (/uss + tab completion), SimCommands (bot/duel/kit/team/map/lobby/game/cam/scene/fake/fx/pack)
+  bot/        Bot, BotManager (LOD tick, grid), BotSpawner, BotListener, BotGroup, BotLoadout, SkillTier (HT1..LT6),
+              PvpMode, SpatialGrid
+    ai/       BotBrain, BotMovement, BotPathfinder (budgeted A*), BotCombat, Squad (organised NULL), Tactic +
+              AxeTactic, MaceTactic, ElytraMaceTactic, UhcTactic, NethPotTactic, SpearTactic
+    skin/     SkinService (user/texture/pack/default skins), NameGenerator (scrambled, ____X____, gamer), PackServer
+  kit/        Kit, KitService (kits.yml), DefaultKits (sword, axe, mace, elytra_mace, uhc, nethpot, spear, null, law, bandit)
+  team/       TeamService (scoreboard teams for players + bots)
+  map/        MapService (maps.yml: spawns, exits, regions, lobby, block links), MapLinkListener
+  game/       GameService (WAVES, BATTLE, TDM, FFA, BOSS, DUEL)
+  cine/       CameraService (spline camera paths), SceneService (scenes/*.yml), Cinematics (fade/shake/slowmo/titles), FakeChat
 src/test/java/dev/unstablesmp/   formation math, slot assignment, army offsets, combos, config/messages checks
 ```
 
@@ -71,6 +87,21 @@ You need JDK 21. The Gradle wrapper is included.
 | `/uss event <portal\|null\|law\|cinder> [stop\|player]` | `uss.event` | Starts an event at your position (console: world spawn, or at a named player). `stop` ends that one. `/uss event stop` ends all |
 | `/uss battle <factionA> <factionB> [size] [player]` | `uss.battle` | Spawns both armies in front of you; they fight until one side is wiped out. `/uss battle stop` ends all |
 | `/uss reload` | `uss.reload` | Reloads `config.yml` and `messages.yml` |
+| `/uss bot spawn <count> [group] [mode] [tier] [key=value...]` | `uss.bot` | Spawns player bots. Keys: `team=`, `at=here\|map:spawn\|@p\|x,y,z`, `target=@p`, `kit=`, `skin=`, `name=`, `leaders=false`, `spread=`, `announce=false`. The tier can be a range (`HT1-LT2`) |
+| `/uss bot clear [group\|team\|map\|all]`, `list`, `target <group> <@p>`, `untarget`, `march <group> <where>`, `tp <group> <where>` | `uss.bot` | Manage bots |
+| `/uss duel [player] [mode] [tier] [group]` | `uss.duel` | 1v1 a bot. You get that mode's kit |
+| `/uss kit give <kit> [@targets]`, `save <name>`, `delete`, `list` | `uss.kit` | Kits for players. Bots use the same kits |
+| `/uss team join <team> [@targets]`, `leave`, `gui`, `list` | `uss.team` | Teams (bots never hurt their own team) |
+| `/uss map create\|delete\|setspawn\|addspawn\|setexit\|pos1\|pos2 <map> [key]`, `setlobby`, `tp <map> [spawn] [@targets] [kit=] [team=]`, `link <map> [spawn] [kit=] [team=]`, `unlink`, `list` | `uss.map` | Arenas ("maps") and lobby links (note blocks, buttons, plates) |
+| `/uss lobby [@targets]` | `uss.lobby` | Back to the lobby |
+| `/uss game start <waves\|battle\|tdm\|ffa\|boss\|duel> <map> [group=] [b=] [count=] [waves=] [inc=] [mode=] [tier=] [kit=] [team=] [players=@a]`, `stop [map\|all]`, `list` | `uss.game` | Command-block games with countdown, boss bar, win/lose, return to exit/lobby |
+| `/uss cam add [ticks]`, `undo`, `clear`, `save <name>`, `play <name> [@targets]`, `stop`, `delete`, `list` | `uss.cine` | Smooth spline camera paths for recordings |
+| `/uss scene play <name> [@targets]`, `stop`, `list`, `reload` | `uss.cine` | Run a scripted scene from `scenes/*.yml` |
+| `/uss fake chat <name> <msg>`, `join <name>`, `leave <name>`, `death <victim> [killer]` | `uss.cine` | Vanilla-identical fake chat, join, leave and death lines (MiniMessage names) |
+| `/uss fx fade <out\|in> [@targets] [ticks]`, `shake [@targets] [ticks] [strength]`, `slowmo <rate> [ticks]`, `reset`, `title <@targets> <title> [\| subtitle]` | `uss.cine` | Screen effects. Slow motion uses the server tick rate |
+| `/uss pack send [@targets]`, `reload` | `uss.pack` | Send or rebuild the skin resource pack |
+
+Every player argument takes selectors (`@p`, `@a[distance=..10]`, names, `all`), and positions come from where the command runs. That makes these work from **command blocks** and `/execute at`.
 | `/uss status` | `uss.status` | Shows entity and unit counts, running events and battles, and per-subsystem tick time in ms |
 
 Every argument tab-completes. Players only see subcommands they have permission for.
@@ -85,6 +116,8 @@ Every argument tab-completes. Players only see subcommands they have permission 
 | `uss.formation` | everyone | `/uss formation` for your own swarm |
 | `uss.event`, `uss.battle`, `uss.reload`, `uss.status` | op | |
 | `uss.ability.*` | everyone | Use ability items: `uss.ability.vexbots`, `.null`, `.portal`, `.law`, `.cindercrest` |
+| `uss.bot`, `uss.kit`, `uss.team`, `uss.map`, `uss.game`, `uss.cine`, `uss.pack` | op | Simulator tools (command blocks have op) |
+| `uss.duel`, `uss.lobby` | everyone | `/uss duel`, `/uss lobby` |
 | `uss.combat.bypass` | nobody | Never combat-tagged |
 
 Players can only use abilities they have items for. Use `/uss give` or the GUI to hand them out.
@@ -151,6 +184,75 @@ There are 7 default factions: **Null**, **Jamatop**, **LAW**, **Cindercrest**, *
   - left-click: **STAND DOWN**
   - sneak + right-click: open the GUI
 
+## Player bots (simulator)
+
+Bots are 1.21.9+ **Mannequins**: real player models with skins, armour, held items, health, knockback and physics. They have no vanilla AI; everything they do comes from the plugin.
+
+**Skill tiers (MCTiers style, extended to LT6):** HT1, LT1, HT2, LT2 ... HT6, LT6.
+- HT1 has a 1-tick reaction, about 1.5° of aim error, hits at full cooldown, crits about 90% of the time, w-taps, strafes, jump-resets knockback, blocks well, heals early and uses pearls and utility.
+- LT6 reacts slowly, aims badly, spams weak hits, whiffs, never crits, walks straight at you and heals late.
+- Every stat can be overridden in `bots.tiers`.
+
+**PvP modes:**
+
+| Mode | What the bot does |
+|---|---|
+| sword | Spacing, strafing, crit-jump timing, sprint/w-tap knockback, gapples |
+| axe | Shield blocking; disables your shield with the axe (5 s cooldown, like vanilla); crossbow pokes |
+| mace | Wind-charge launch, air control, smash with vanilla fall-scaled damage + Density; Wind Burst bounce chains |
+| elytra_mace | Rocket up, glide high above you, dive and smash |
+| uhc | No natural regen, gapples, bow at range, rod pulls, lava buckets and cobwebs (temporary and always cleaned up; respects WorldGuard), shield |
+| nethpot | Speed and strength II, splash heals at its feet, totems (re-equipped after a pop at tier speed), pearls |
+| spear | Speed-scaled charge attacks plus jabs; wind charges to reset distance |
+
+**Groups** (`bots.groups`): each one sets skins, names, tier pool, mode pool, kit, team, behaviour, a leader and elites, chat lines, health and scale.
+- **null**:
+  - the generated **all-black NULL skin**, with **scrambled (obfuscated) names**
+  - mostly HT1-HT2
+  - **ORGANISED**: squads march in formation and focus-fire one target, with at most 3 attackers per enemy. Hurt members rotate to the back to heal.
+  - led by **JamatoP**, with commanders `____D____`, `____X____` and `_________`
+- **law**: led by **King LettuceK**, with elites TheGODofWar and SargeLAW. Gold-trimmed kit; random skill from HT2 to LT6.
+- **bandits**: random everything, with gamer names.
+- **duelist** and **random**.
+
+**Skins:** each group lists skin specs.
+- `pack:null` (or any PNG dropped into `plugins/UnstableSMP/skins/`) uses the plugin's resource pack.
+- `user:<name>` uses a Minecraft account's skin.
+- `texture:<base64>` uses a raw texture (e.g. from MineSkin).
+- `default:steve|alex|...` uses a built-in skin.
+- The black NULL skin is drawn in code (`resource-pack.null-skin`: colour, eyes). The pack is served by a built-in web server: set `resource-pack.host` to your public IP or domain and open `resource-pack.port`, or upload `pack/UnstableSMP-pack.zip` yourself and set `external-url`.
+- Without the pack, NULL bots fall back to `fallback-skin` and still wear their black-trimmed netherite.
+
+**Immersion:**
+- Bots post vanilla-identical "joined the game" and "X was slain by Y" lines (the game's own translation keys) and chat taunts from their group's lines.
+- NULL names are obfuscated in chat too.
+- Players fighting bots get combat-tagged.
+- Bots are not added to the tab list, which would need packet-level fakes.
+
+## Simulator setup (lobby + command blocks)
+
+1. Build an arena, stand in it and run `/uss map create arena`. Add bot spawns with `/uss map addspawn arena bots` (several points spread big spawns out). Add `a` and `b` spawns for battles, then `/uss map setexit arena`.
+2. In the lobby run `/uss map setlobby`. Look at a note block and run `/uss map link arena players kit=mace team=players`. Clicking it now sends a player to the arena with the mace kit (pressure plates link the same way, by stepping on them).
+3. Command blocks:
+   - `uss game start waves arena group=law count=20 inc=15 waves=10 players=@a[distance=..10]` (2v1000-style LAW waves)
+   - `uss game start battle arena group=null b=law count=250`
+   - `uss bot spawn 50 null at=arena:bots target=@p`
+   - `uss duel @p mace HT1`
+   - `uss team join null @p`
+   - `uss kit give nethpot @p`
+4. Teams: give players the team GUI (`/uss team gui @p`). Players on `null` fight alongside NULL bots.
+
+## Recording / POV skits
+
+- **Camera paths:** fly to each shot and run `/uss cam add 60` (ticks to the next keyframe). Then `/uss cam save intro` and `/uss cam play intro @a`. Viewers ride a smooth spline in spectator mode and are put back where they were.
+- **Scenes:** `plugins/UnstableSMP/scenes/*.yml` hold timelines of titles, fake chat, joins, deaths, sounds, fades, shakes, slow motion, camera paths, bot spawns and orders, teleports, kits, teams, games and console commands. Two examples ship with the plugin: `/uss scene play null_invasion @p` and `/uss scene play law_arrest @p`.
+- **Live tools:**
+  - `/uss fake chat <white>____D____ <gray>found you.`
+  - `/uss fake join JamatoP`
+  - `/uss fx slowmo 5 60`
+  - `/uss fx fade out @a 40`
+  - `/uss fx title @a <white><bold>NULL | <gray>they are here`
+
 ## Config walkthrough
 
 | Section | What it controls |
@@ -166,6 +268,11 @@ There are 7 default factions: **Null**, **Jamatop**, **LAW**, **Cindercrest**, *
 | `templates` | Entity type, health, damage, speed, scale, weapon, armour tier and colour, head, trail particle, traits, summons |
 | `battles` | Gap, distance, max size, cleanup delay, presets (`null:law`, `clownpierce:law`, ...) |
 | `events` | Broadcast scope, boss-bar range, max concurrent, and per event: duration, faction, spawn-mode, waves, caps, strikes, portals, VexBot `command` |
+| `bots` | Max bots (1000), aggro and LOD ranges, regen, collisions, pathfinding budget, immersion messages, tier overrides, groups |
+| `teams` | Team list (name, colour, prefix, icon) and whether bots attack teamless players |
+| `resource-pack` | Built-in pack server (host, port), external URL, NULL skin colour and eyes |
+| `games` | Countdown and end delay |
+| `kits.yml`, `maps.yml`, `cameras.yml`, `scenes/` | Saved in game with the commands above |
 
 **VexBot compatibility:**
 1. Set `events.<event>.spawn-mode: COMMAND`.
@@ -197,6 +304,13 @@ Every spawn then runs that command, and whatever entity it spawns (caught via `E
 - A Portal Invasion (40 hostiles) plus a 40-vs-40 battle (119 mobs fighting) took **0.41 ms/tick** of plugin time. The whole server averaged 5.9 ms/tick at 19.7+ TPS.
 - A 24-bot portal swarm cycling all 10 formations, together with every ability effect, ran without errors.
 - Afterwards, `kill @e[type=block_display|item_display|interaction]` found **no** leftover entities.
+
+**Measured, player bots** (headless Paper 1.21.11, 4 vCPU):
+- **507 bots** (250 NULL + leaders vs 250 LAW + leaders), all fully ticking, at peak combat: **10.9-11.6 ms/tick average, 20.0 TPS**. The bot AI itself used about 0.6-1.5 ms/tick. NULL won in under 30 s.
+- **All 7 modes**, 12 HT1-LT2 bots vs 12 LT3-LT6 bots each, with 0 errors. The better tiers won: sword 8-1, mace 7-0, elytra mace 9-0, spear 7-2.
+- After stopping mid-battle and restarting there were no leftover mannequins.
+
+Bots set a hidden, harmless Luck effect. Paper's entity activation range would otherwise freeze bots with no player within 16 blocks.
 
 ## Manual test checklist (needs a real player)
 
@@ -243,6 +357,13 @@ Every spawn then runs that command, and whatever entity it spawns (caught via `E
     - Units don't grief inside regions unless `uss-unit-griefing allow` is set.
     - Abilities respect `pvp deny`.
 20. `/uss reload`, `/uss status`, then stop the server and start it again. There are no leftover displays and no "Removed N leftover entities" for a clean shutdown.
+
+**Simulator checklist:**
+21. `/uss duel @s sword HT1`, then LT6. The difference should be obvious (crits, w-taps, strafing, blocking).
+22. `/uss bot spawn 30 null`: black skins (accept the pack), obfuscated names, squads in formation around JamatoP, focus fire, hurt bots rotating out.
+23. Each mode against you: mace launches and smashes, elytra mace dives from the sky, the axe disables your shield, UHC places lava and cobwebs that vanish, nethpot pots and pops totems, spear charges.
+24. Lobby note-block link, then a `waves` game on a map: countdown, waves, boss bar, win/lose, back to the exit.
+25. Camera path playback and `scene play null_invasion`.
 
 ## Upgrade ideas
 

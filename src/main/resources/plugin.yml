@@ -21,6 +21,15 @@ permissions:
       uss.reload: true
       uss.status: true
       uss.ability.*: true
+      uss.bot: true
+      uss.duel: true
+      uss.kit: true
+      uss.team: true
+      uss.map: true
+      uss.lobby: true
+      uss.game: true
+      uss.cine: true
+      uss.pack: true
   uss.gui:
     description: Open /uss gui and use Faction Horns.
     default: op
@@ -41,6 +50,33 @@ permissions:
     default: op
   uss.status:
     description: /uss status (entity counts and tick timings).
+    default: op
+  uss.bot:
+    description: Spawn, clear and command player bots (/uss bot, GUI bot page).
+    default: op
+  uss.duel:
+    description: /uss duel - fight a bot 1v1.
+    default: true
+  uss.kit:
+    description: /uss kit give/save/delete/list.
+    default: op
+  uss.team:
+    description: /uss team join/leave/gui for any players (everyone can use the team menu from the GUI).
+    default: op
+  uss.map:
+    description: Create maps, set spawns and link lobby blocks (/uss map).
+    default: op
+  uss.lobby:
+    description: /uss lobby - back to the lobby.
+    default: true
+  uss.game:
+    description: Start and stop simulator games (/uss game).
+    default: op
+  uss.cine:
+    description: Cinematic tools - /uss cam, scene, fake, fx.
+    default: op
+  uss.pack:
+    description: /uss pack send/reload.
     default: op
   uss.combat.bypass:
     description: Never combat-tagged.

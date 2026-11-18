@@ -541,7 +541,7 @@ templates:
     head: WITHER_SKULL
     traits: [KITE]
   null_commander:
-    name: "Null Commander"
+    name: "JamatoP"
     entity: WITHER_SKELETON
     health: 160
     damage: 10
@@ -549,7 +549,7 @@ templates:
     scale: 1.4
     weapon: NETHERITE_SWORD
     armor: NETHERITE
-    head: WITHER_SKULL
+    head: JamatoP
     trail: SQUID_INK
     leader: true
     summon: null_wraith
@@ -927,3 +927,135 @@ events:
     target-range: 64
     strikes: {type: ASHFALL, interval-seconds: 6, per-strike: 2, range: 48}
     command: {command: "", run-as: CONSOLE, pull-spawned-to-spawn-point: true, capture-window-ticks: 5}
+
+# =====================================================================================================
+#  PLAYER BOTS (VexBot-style PvP bots that look like players). Built on 1.21.9+ Mannequins: real player model and
+#  skin, armour, health and physics, driven entirely by this plugin.
+#  Skill tiers: HT1 (best) LT1 HT2 LT2 ... HT6 LT6 (worst). Modes: sword axe mace elytra_mace uhc nethpot spear.
+# =====================================================================================================
+bots:
+  max-total: 1000                 # hard cap on live bots
+  aggro-range: 40                 # how far a bot looks for enemies
+  lod-range: 64                   # bots with no player within this range think less often (cheap at 500+)
+  natural-regen-per-second: 0.5   # not in UHC mode
+  collide: false                  # bots don't push each other (big CPU win in 500-bot fights)
+  drop-items: false
+  max-temp-blocks: 600            # UHC lava/cobwebs placed by bots (always cleaned up)
+  pathfinding:
+    node-budget-per-tick: 4000    # A* nodes all bots may expand per tick, combined
+    max-nodes: 600                # per search
+  immersion:
+    join-messages: true           # "<name> joined the game" when bots spawn (vanilla text)
+    leave-messages: false
+    death-messages: true          # "<bot> was slain by <player>" (vanilla text)
+    chat-chance-multiplier: 1.0   # scales every group's chat.chance
+  # Optional per-tier overrides, e.g.:
+  # tiers:
+  #   HT1: {reaction-ticks: 1, aim-error: 1.5, attack-charge: 0.95, crit-rate: 0.9, wtap-rate: 0.9, strafe: 0.95,
+  #         jump-reset: 0.8, block: 0.9, reach: 3.0, heal-at: 0.45, heal-delay-ticks: 1, pearl: 0.8, utility: 0.85,
+  #         sprint: 1.0, combo: 0.95, retotem-ticks: 3, miss-chance: 0.02}
+  groups:
+    "null":
+      name: "<white><bold>NULL"
+      color: "#1A1A1A"
+      team: "null"
+      skins: ["pack:null"]              # the generated all-black NULL skin (see resource-pack)
+      fallback-skin: "default:steve"    # used if the pack isn't served
+      names: {style: SCRAMBLED, format: "<dark_gray><obf><name></obf>"}
+      tier-weights: {HT1: 3, LT1: 4, HT2: 3}   # war machines
+      modes: ["sword:4", "axe:3", "mace:2", "nethpot:1"]
+      kit: "null"
+      behaviour: ORGANISED              # squads, formations, focus fire, rotate out to heal
+      squad-size: 10
+      health: 20
+      leader: {name: "JamatoP", display: "<white><bold>JamatoP", skin: "user:JamatoP", tier: HT1, mode: sword, kit: "null", health: 60, scale: 1.1}
+      elites:
+        - {name: "____D____", display: "<white>____D____", skin: "pack:null", tier: HT1, mode: axe, kit: "null", health: 32}
+        - {name: "____X____", display: "<white>____X____", skin: "pack:null", tier: HT1, mode: mace, kit: "null", health: 32}
+        - {name: "_________", display: "<white>_________", skin: "pack:null", tier: HT1, mode: sword, kit: "null", health: 40}
+      chat:
+        chance: 0.2
+        kill: ["<gray>null.", "<dark_gray><obf>deleted</obf>", "<gray>removed.", "<gray>...", "<gray>next."]
+        spawn: ["<dark_gray><obf>we are here</obf>"]
+    law:
+      name: "<gold><bold>LAW"
+      color: "#FFD54A"
+      team: law
+      skins: ["default:steve", "default:alex", "default:kai", "default:noor", "default:efe", "default:sunny", "default:zuri", "default:ari", "default:makena"]
+      names: {style: GAMER, format: "<gold>[LAW] <white><name>"}
+      tiers: "HT2-LT6"                  # randomised skill: some sweats, some bad
+      modes: ["sword:4", "axe:3", "uhc:1", "spear:1"]
+      kit: law
+      behaviour: SWARM
+      health: 20
+      leader: {name: "KingLettuceK", display: "<gold><bold>King LettuceK", skin: "user:LettuceK", tier: HT1, mode: axe, kit: law, health: 80, scale: 1.15}
+      elites:
+        - {name: "TheGODofWar", display: "<gold>TheGODofWar", skin: "user:TheGODofWar", tier: HT1, mode: sword, kit: law, health: 40}
+        - {name: "SargeLAW", display: "<gold>SargeLAW", skin: "user:SargeLAW", tier: LT1, mode: axe, kit: law, health: 36}
+      chat:
+        chance: 0.15
+        kill: ["<white>Justice served.", "<white>You are under arrest.", "<white>Next!", "<white>The LAW always wins."]
+        spawn: ["<white>Halt!", "<white>LAW is here."]
+    bandits:
+      name: "<#C08040>Bandits"
+      color: "#C08040"
+      team: bandits
+      skins: ["default:steve", "default:alex", "default:kai", "default:efe", "default:zuri"]
+      names: {style: GAMER, format: "<#C08040><name>"}
+      tiers: "random"
+      modes: []                         # empty = any style
+      kit: bandit
+      behaviour: SWARM
+      chat: {chance: 0.2, kill: ["<white>ez", "<white>gg", "<white>L", "<white>get clapped"], spawn: ["<white>loot time"]}
+    duelist:
+      name: "<aqua>Duelist"
+      color: "#55FFFF"
+      team: duelist
+      skins: ["default:steve", "default:alex"]
+      names: {style: GAMER, format: "<white><name>"}
+      tiers: "HT3"
+      modes: []
+      kit: ""                           # "" = the mode's own kit (sword, axe, mace, ...)
+      behaviour: DUELIST
+      chat: {chance: 0.3, kill: ["<white>gg", "<white>gf", "<white>ez"], spawn: ["<white>glhf"]}
+    random:
+      name: "<gray>Random"
+      color: "#AAAAAA"
+      team: random
+      skins: ["default:steve", "default:alex", "default:kai", "default:noor", "default:sunny", "default:makena"]
+      names: {style: GAMER, format: "<white><name>"}
+      tiers: "random"
+      modes: []
+      kit: ""
+      behaviour: SWARM
+
+# Teams for players (and bots). Players on a team are never attacked by that team's bots.
+teams:
+  bots-attack-teamless-players: true
+  list:
+    players: {name: "<white>Players", color: white, icon: WHITE_WOOL}
+    red: {name: "<red>Red", color: red, icon: RED_WOOL, prefix: "<red>[R] "}
+    blue: {name: "<blue>Blue", color: blue, icon: BLUE_WOOL, prefix: "<blue>[B] "}
+    green: {name: "<green>Green", color: green, icon: LIME_WOOL, prefix: "<green>[G] "}
+    yellow: {name: "<yellow>Yellow", color: yellow, icon: YELLOW_WOOL, prefix: "<yellow>[Y] "}
+    "null": {name: "<dark_gray><bold>NULL", color: dark_gray, icon: BLACK_WOOL}
+    law: {name: "<gold><bold>LAW", color: gold, icon: GOLD_BLOCK}
+    bandits: {name: "<#C08040>Bandits", color: dark_red, icon: BROWN_WOOL}
+
+# The UnstableSMP resource pack holds generated skins (the black NULL skin) and any PNG you drop into
+# plugins/UnstableSMP/skins/ (use them as skin "pack:<filename>"). It's served by a tiny built-in web server.
+resource-pack:
+  enabled: true
+  send-on-join: true
+  required: false
+  host: ""                    # your server's public IP/domain (required for the built-in server)
+  port: 8163                  # open this TCP port
+  bind: "0.0.0.0"
+  external-url: ""            # or upload plugins/UnstableSMP/pack/UnstableSMP-pack.zip somewhere and put its URL here
+  pack-format: 75
+  null-skin: {color: "#0B0B0B", eyes: none}   # eyes: none, white, red, purple (delete skins/null.png to regenerate)
+
+# Command-block games (/uss game start <waves|battle|tdm|ffa|boss|duel> <map> ...)
+games:
+  countdown-seconds: 5
+  end-delay-seconds: 5

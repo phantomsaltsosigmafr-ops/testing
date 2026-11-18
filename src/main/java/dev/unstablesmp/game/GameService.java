@@ -210,7 +210,7 @@ public final class GameService implements Ticker.Tickable, Listener {
                 s.bar.progress(Math.max(0f, Math.min(1f, s.wave / (float) Math.max(1, s.o.waves))));
             }
             case BATTLE -> {
-                s.bar.name(plugin.messages().get("game.bar-battle", Messages.p("a", s.o.group), Messages.p("b", s.o.groupB),
+                s.bar.name(plugin.messages().get("game.bar-battle", Messages.p("side_a", s.o.group), Messages.p("side_b", s.o.groupB),
                         Messages.p("ca", Integer.toString(counts[1])), Messages.p("cb", Integer.toString(counts[2]))));
                 if (counts[1] == 0 || counts[2] == 0) {
                     String winner = counts[1] == 0 && counts[2] == 0 ? "-" : counts[1] == 0 ? s.o.groupB : s.o.group;

@@ -91,3 +91,15 @@ Research notes (Unstable Universe wiki via search snippets, tvtropes, Modrinth/h
 8. Integrate with existing systems: Targeting/friendly fire, combat tag, kill messages, status, cleanup.
 9. Tests plus a headless server smoke test: spawn 500+ bots fighting, measure MSPT; all modes run with no exceptions.
 10. README update, commit, push.
+
+## Status: done
+
+All 10 tasks are complete. Verified on a headless Paper 1.21.11 server:
+- 507 bots fighting at peak: 10.9-11.6 ms/tick, 20 TPS.
+- All 7 PvP modes ran with 0 errors, and the higher tiers beat the lower tiers in every mode that produced a result. In axe and UHC both sides fought to zero, so those two didn't separate the tiers.
+- No ghost entities after a mid-battle restart.
+- 25 unit tests pass.
+
+Two bugs found and fixed during testing:
+- 1.21.11 spears crashed mannequins when "used", so the spear charge is now plugin-only.
+- Paper's activation range froze distant bots, so bots now carry a hidden Luck effect.

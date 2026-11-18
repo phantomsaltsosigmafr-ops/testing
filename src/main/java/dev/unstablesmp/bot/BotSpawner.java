@@ -96,6 +96,7 @@ public final class BotSpawner {
             m.setHealth(health);
             if (Math.abs(scale - 1) > 0.01) setAttr(m, Attribute.SCALE, scale);
             equip(m, fl, fm);
+            keepTicking(m);
         });
         Bot b = new Bot(mgr.nextId(), body, g, tier, mode, load, team, display, plain, mem != null && mem.leader());
         b.spawnTick = org.bukkit.Bukkit.getCurrentTick();
@@ -212,6 +213,16 @@ public final class BotSpawner {
             l.strengthPots = m.strengthPots;
             l.totems = Math.max(l.totems, m.totems);
         }
+    }
+
+    /**
+     * Spigot/Paper "entity activation range" freezes entities with no player nearby unless they are immune; any
+     * active potion effect grants immunity. A hidden, harmless Luck effect keeps every bot fully ticking so fights
+     * between bots carry on even when no player is watching.
+     */
+    static void keepTicking(LivingEntity e) {
+        e.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.LUCK,
+                org.bukkit.potion.PotionEffect.INFINITE_DURATION, 0, true, false, false));
     }
 
     private static void setAttr(LivingEntity e, Attribute a, double v) {

@@ -278,6 +278,7 @@ public final class BotManager implements Ticker.Tickable {
                 plugin.getLogger().warning("Bot " + b.plainName + " tick error: " + ex);
             }
             if (regen && b.mode != PvpMode.UHC && now - b.lastHurt > 80) heal(b, regenPerSecond);
+            if (regen && !b.body.hasPotionEffect(org.bukkit.potion.PotionEffectType.LUCK)) BotSpawner.keepTicking(b.body);
         }
         if (removedAny) compact();
     }
