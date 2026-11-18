@@ -54,20 +54,21 @@ jobs:
           TAG="v$VERSION"
           SHORT=$(git rev-parse --short HEAD)
           cat > notes.md <<NOTES
-          **UnstableSMP $VERSION** for **Paper 1.21.11** (Java 21). Built from commit $SHORT.
+          **UnstableSMP $VERSION**: NULL portal breach for **Paper 1.21.x** (Java 21). Built from commit $SHORT.
+
+          Portals tear open around a point and each one runs \`vexbot nullportalspawn x y z <number>\` at its mouth over and over, so VexBot's bots pour out of the void.
 
           ### Install
           1. Download **UnstableSMP-$VERSION.jar** below.
-          2. Put it in your server's \`plugins/\` folder (remove any older UnstableSMP jar first) and restart.
-          3. Optional: install WorldGuard 7 for region support.
+          2. Put it in your server's \`plugins/\` folder. Delete any older UnstableSMP jar first.
+          3. Fully restart the server. VexBot must be installed for bots to pour out.
 
-          ### Quick test
-          - \`/uss gui\`: command center
-          - \`/uss bot spawn 20 null\`: NULL bots with scrambled names and black skins (also in the tab list)
-          - \`/uss bot spawn 20 law\`: LAW bots with random skill tiers
-          - \`/uss battle null law 40\`: faction battle
+          ### Try it
+          - \`/uss start\`: breach around you (4 portals)
+          - \`/uss portal\`: one portal in front of you
+          - \`/uss stop\`: collapse everything (\`/uss stop now\` for instant)
 
-          Full commands, permissions and config are in the [README](https://github.com/${{ github.repository }}/blob/$GITHUB_SHA/README.md).
+          Full commands and config are in the [README](https://github.com/${{ github.repository }}/blob/$GITHUB_SHA/README.md).
           This release is rebuilt on every push, so it's always the newest build.
           NOTES
           if gh release view "$TAG" > /dev/null 2>&1; then
