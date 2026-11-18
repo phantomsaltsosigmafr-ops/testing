@@ -28,20 +28,22 @@ import org.bukkit.entity.Player;
 public final class UssCommand implements BasicCommand {
     private static final String[] SUBS = {"gui", "give", "formation", "event", "battle", "reload", "status"};
     private final UnstableSMP plugin;
+    private final SimCommands sim;
 
     public UssCommand(UnstableSMP plugin) {
         this.plugin = plugin;
+        this.sim = new SimCommands(plugin);
     }
 
     private static String perm(String sub) {
-        return "uss." + sub;
+        return SimCommands.SUBS.contains(sub) ? SimCommands.perm(sub) : "uss." + sub;
     }
 
     @Override
     public void execute(CommandSourceStack stack, String[] args) {
         CommandSender sender = stack.getSender();
         String sub = args.length == 0 ? "help" : args[0].toLowerCase(Locale.ROOT);
-        if (!sub.equals("help") && !List.of(SUBS).contains(sub)) sub = "help";
+        if (!sub.equals("help") && !List.of(SUBS).contains(sub) && !SimCommands.SUBS.contains(sub)) sub = "help";
         if (!sub.equals("help") && !sender.hasPermission(perm(sub))) {
             plugin.messages().send(sender, "no-permission");
             return;
@@ -57,7 +59,8 @@ public final class UssCommand implements BasicCommand {
                 plugin.messages().send(sender, "reloaded");
             }
             case "status" -> status(sender);
-            default -> plugin.messages().send(sender, "help");
+            case "help" -> plugin.messages().send(sender, "help");
+            default -> sim.execute(sub, sender, stack.getLocation(), args);
         }
     }
 
@@ -209,6 +212,8 @@ public final class UssCommand implements BasicCommand {
         StringBuilder fs = new StringBuilder("<gray>Factions:");
         for (Faction f : plugin.factions().all()) fs.append(" <white>").append(f.id).append("</white>=").append(plugin.units().count(f));
         sender.sendMessage(Text.mm(fs.toString()));
+        sender.sendMessage(Text.mm("<gray>Bots: <white>" + plugin.bots().count() + "</white>/" + plugin.bots().maxTotal()
+                + "  Temp blocks: <white>" + plugin.tempBlocks().count() + "</white>  Games: <white>" + plugin.games().running()));
         sender.sendMessage(Text.mm("<gray>Events: <white>" + plugin.events().running().keySet() + "</white>  Battles: <white>" + plugin.battles().running().size()
                 + "</white>  Regions: <white>" + plugin.regions().name()));
         for (String line : plugin.ticker().report()) sender.sendMessage(Text.mm("<dark_gray>  " + line));
@@ -220,10 +225,12 @@ public final class UssCommand implements BasicCommand {
         List<String> out = new ArrayList<>();
         if (args.length <= 1) {
             for (String s : SUBS) if (sender.hasPermission(perm(s))) out.add(s);
+            for (String s : SimCommands.SUBS) if (sender.hasPermission(perm(s))) out.add(s);
             return filter(out, args.length == 0 ? "" : args[0]);
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         if (!sender.hasPermission(perm(sub))) return out;
+        if (SimCommands.SUBS.contains(sub)) return filter(new ArrayList<>(sim.suggest(sub, args)), args[args.length - 1]);
         String last = args[args.length - 1];
         switch (sub) {
             case "give" -> {

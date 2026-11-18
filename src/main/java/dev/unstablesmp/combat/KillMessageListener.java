@@ -49,6 +49,7 @@ public final class KillMessageListener implements Listener {
 
     private String verbFor(String key) {
         List<String> pool = byKey.get(key);
+        if ((pool == null || pool.isEmpty()) && key.equals("bot")) pool = pvp;
         if ((pool == null || pool.isEmpty()) && key.startsWith("faction:")) {
             Faction f = plugin.factions().get(key.substring("faction:".length()));
             if (f != null && !f.killVerbs.isEmpty()) pool = f.killVerbs;

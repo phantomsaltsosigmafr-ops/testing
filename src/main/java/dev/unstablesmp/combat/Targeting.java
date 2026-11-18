@@ -36,9 +36,15 @@ public final class Targeting {
             GameMode gm = p.getGameMode();
             if (gm != GameMode.SURVIVAL && gm != GameMode.ADVENTURE) return false;
             if (cf != null && !cf.eventHostile && cf.members.contains(p.getUniqueId())) return false;
+            if (c.player() != null && plugin.teams().sameTeam(c.player(), p)) return false;
             return plugin.regions().canPvp(c.player(), p.getLocation());
         }
 
+        dev.unstablesmp.bot.Bot bot = plugin.bots().bot(t);
+        if (bot != null) {
+            if (c.player() != null && bot.team.equalsIgnoreCase(String.valueOf(plugin.teams().teamOf(c.player())))) return false;
+            return cf == null || cf.eventHostile || !bot.team.equalsIgnoreCase(cf.baseId);
+        }
         Unit u = plugin.units().unit(t);
         if (u != null) {
             if (cf != null && u.f == cf) return false;

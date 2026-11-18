@@ -33,6 +33,14 @@ public final class GuiService implements Listener {
         new MainMenu(plugin, this, p).open();
     }
 
+    public void openTeams(Player p) {
+        new TeamMenu(plugin, p).open();
+    }
+
+    public void openBots(Player p) {
+        new BotMenu(plugin, this, p).open();
+    }
+
     public void select(Player p, Faction f) {
         selected.put(p.getUniqueId(), f.id);
     }

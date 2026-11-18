@@ -22,7 +22,7 @@ import org.bukkit.persistence.PersistentDataType;
  * never ghost entities.
  */
 public final class EntityTracker implements Listener, Ticker.Tickable {
-    public enum Kind { DISPLAY, MOB }
+    public enum Kind { DISPLAY, MOB, BOT }
 
     private record Entry(Entity entity, UUID owner, Kind kind) {
     }
@@ -31,6 +31,7 @@ public final class EntityTracker implements Listener, Ticker.Tickable {
     private final Map<UUID, int[]> displaysByOwner = new HashMap<>();
     private int displays;
     private int mobs;
+    private int bots;
 
     private int maxDisplaysPerPlayer = 160;
     private int maxDisplaysServer = 2000;
@@ -52,6 +53,8 @@ public final class EntityTracker implements Listener, Ticker.Tickable {
         if (kind == Kind.DISPLAY) {
             displays++;
             if (owner != null) displaysByOwner.computeIfAbsent(owner, k -> new int[1])[0]++;
+        } else if (kind == Kind.BOT) {
+            bots++;
         } else {
             mobs++;
         }
@@ -72,6 +75,8 @@ public final class EntityTracker implements Listener, Ticker.Tickable {
                 int[] c = displaysByOwner.get(en.owner);
                 if (c != null && --c[0] <= 0) displaysByOwner.remove(en.owner);
             }
+        } else if (en.kind == Kind.BOT) {
+            bots--;
         } else {
             mobs--;
         }
@@ -101,6 +106,10 @@ public final class EntityTracker implements Listener, Ticker.Tickable {
 
     public int mobs() {
         return mobs;
+    }
+
+    public int bots() {
+        return bots;
     }
 
     public int displaysOf(UUID owner) {
@@ -155,6 +164,7 @@ public final class EntityTracker implements Listener, Ticker.Tickable {
         displaysByOwner.clear();
         displays = 0;
         mobs = 0;
+        bots = 0;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

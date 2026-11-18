@@ -171,6 +171,11 @@ final class MainMenu extends Menu {
             if (p.hasPermission("uss.give")) new AbilitiesMenu(plugin, gui, p).open();
             else plugin.messages().send(p, "no-permission");
         });
+        set(51, Icons.icon(Material.PLAYER_HEAD, "<white><bold>Player Bots...", "Spawn PvP bots (NULL, LAW, bandits...)", "Pick style and skill tier HT1..LT6"), (p, t) -> {
+            if (p.hasPermission("uss.bot")) new BotMenu(plugin, gui, p).open();
+            else plugin.messages().send(p, "no-permission");
+        });
+        set(52, Icons.icon(Material.WHITE_BANNER, "<white>Teams...", "Pick the side you fight for"), (p, t) -> new TeamMenu(plugin, p).open());
         set(53, Icons.icon(Material.OAK_DOOR, "<gray>Close"), (p, t) -> p.closeInventory());
     }
 

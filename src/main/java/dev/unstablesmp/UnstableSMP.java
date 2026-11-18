@@ -12,7 +12,23 @@ import dev.unstablesmp.combat.DamageService;
 import dev.unstablesmp.combat.KillMessageListener;
 import dev.unstablesmp.combat.Marks;
 import dev.unstablesmp.combat.Targeting;
+import dev.unstablesmp.bot.BotListener;
+import dev.unstablesmp.bot.BotManager;
+import dev.unstablesmp.bot.BotSpawner;
+import dev.unstablesmp.bot.skin.PackServer;
+import dev.unstablesmp.bot.skin.SkinService;
+import dev.unstablesmp.cine.CameraService;
+import dev.unstablesmp.cine.Cinematics;
+import dev.unstablesmp.cine.FakeChat;
+import dev.unstablesmp.cine.SceneService;
 import dev.unstablesmp.command.UssCommand;
+import dev.unstablesmp.core.PlayerSessionListener;
+import dev.unstablesmp.core.TempBlocks;
+import dev.unstablesmp.game.GameService;
+import dev.unstablesmp.kit.KitService;
+import dev.unstablesmp.map.MapLinkListener;
+import dev.unstablesmp.map.MapService;
+import dev.unstablesmp.team.TeamService;
 import dev.unstablesmp.core.ActionBarService;
 import dev.unstablesmp.core.DisplayFactory;
 import dev.unstablesmp.core.EntityTracker;
@@ -73,6 +89,19 @@ public final class UnstableSMP extends JavaPlugin {
     private FactionHorn horn;
     private CombatTagManager combatTags;
     private KillMessageListener killMessages;
+    private KitService kits;
+    private TeamService teams;
+    private PackServer pack;
+    private SkinService skins;
+    private BotManager bots;
+    private BotSpawner botSpawner;
+    private MapService maps;
+    private GameService games;
+    private FakeChat fakeChat;
+    private CameraService camera;
+    private Cinematics cinematics;
+    private SceneService scenes;
+    private TempBlocks tempBlocks;
 
     @Override
     public void onLoad() {
@@ -115,6 +144,19 @@ public final class UnstableSMP extends JavaPlugin {
         horn = new FactionHorn(this);
         combatTags = new CombatTagManager(this);
         killMessages = new KillMessageListener(this);
+        kits = new KitService(getDataFolder(), getLogger());
+        teams = new TeamService();
+        pack = new PackServer(getDataFolder(), getLogger());
+        skins = new SkinService(pack);
+        bots = new BotManager(this);
+        botSpawner = new BotSpawner(this, bots);
+        maps = new MapService(getDataFolder(), getLogger());
+        games = new GameService(this);
+        fakeChat = new FakeChat();
+        camera = new CameraService(this);
+        cinematics = new Cinematics(this);
+        scenes = new SceneService(this);
+        tempBlocks = new TempBlocks();
 
         reloadAll();
         factions.loadMembers();
@@ -125,7 +167,8 @@ public final class UnstableSMP extends JavaPlugin {
         PluginManager pm = getServer().getPluginManager();
         for (Listener l : List.of(tracker, hitboxes, new CombatListener(this, combatTags), killMessages,
                 new SwarmListener(this, swarms), new AbilityListener(this), abilities.cinder(),
-                new UnitListener(this, units), portalBlocks, commandCapture, gui, horn)) {
+                new UnitListener(this, units), portalBlocks, commandCapture, gui, horn,
+                new BotListener(this, bots), new MapLinkListener(this), games, new PlayerSessionListener(this))) {
             pm.registerEvents(l, this);
         }
 
@@ -137,6 +180,12 @@ public final class UnstableSMP extends JavaPlugin {
         ticker.add(units);
         ticker.add(events);
         ticker.add(battles);
+        ticker.add(bots);
+        ticker.add(games);
+        ticker.add(tempBlocks);
+        ticker.add(camera);
+        ticker.add(cinematics);
+        ticker.add(scenes);
         ticker.add(combatTags);
         ticker.add(actionBar);
         ticker.add(new Ticker.Tickable() {
@@ -162,6 +211,12 @@ public final class UnstableSMP extends JavaPlugin {
     @Override
     public void onDisable() {
         if (ticker != null) ticker.stop();
+        if (scenes != null) scenes.stopAll();
+        if (camera != null) camera.stopAll();
+        if (games != null) games.stopAll();
+        if (bots != null) bots.removeAll();
+        if (tempBlocks != null) tempBlocks.restoreAll();
+        if (pack != null) pack.stop();
         if (events != null) events.stopAll();
         if (battles != null) battles.endAll();
         if (effects != null) effects.removeAll();
@@ -195,6 +250,15 @@ public final class UnstableSMP extends JavaPlugin {
         portalBlocks.configure(c.getBoolean("events.portal-invasion.portals.protect-blocks", true),
                 c.getBoolean("events.portal-invasion.portals.allow-teleport", false));
         actionBar.configure(Text.mm(messages.raw("actionbar-separator")), c.getInt("performance.actionbar-interval-ticks", 5));
+        kits.reload();
+        teams.reload(c.getConfigurationSection("teams"));
+        pack.reload(c.getConfigurationSection("resource-pack"), messages.get("pack.prompt"));
+        bots.reload(c.getConfigurationSection("bots"));
+        tempBlocks.setMax(c.getInt("bots.max-temp-blocks", 600));
+        maps.reload();
+        games.reload(c.getConfigurationSection("games"));
+        camera.reload();
+        scenes.reload();
     }
 
     /** Ability set for a damage key (ability id or swarm source), for kill-message verb fallbacks. */
@@ -204,6 +268,58 @@ public final class UnstableSMP extends JavaPlugin {
         if (SWARM_KEYS.contains(key)) return "vexbots";
         if (key.equals("portal_swarm")) return "portal";
         return null;
+    }
+
+    public KitService kits() {
+        return kits;
+    }
+
+    public TeamService teams() {
+        return teams;
+    }
+
+    public PackServer pack() {
+        return pack;
+    }
+
+    public SkinService skins() {
+        return skins;
+    }
+
+    public BotManager bots() {
+        return bots;
+    }
+
+    public BotSpawner botSpawner() {
+        return botSpawner;
+    }
+
+    public MapService maps() {
+        return maps;
+    }
+
+    public GameService games() {
+        return games;
+    }
+
+    public FakeChat fakeChat() {
+        return fakeChat;
+    }
+
+    public CameraService camera() {
+        return camera;
+    }
+
+    public Cinematics cinematics() {
+        return cinematics;
+    }
+
+    public SceneService scenes() {
+        return scenes;
+    }
+
+    public TempBlocks tempBlocks() {
+        return tempBlocks;
     }
 
     public RegionGuard regions() {

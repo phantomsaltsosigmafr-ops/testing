@@ -1,0 +1,9 @@
+# Example scene: /uss scene play law_arrest @p
+steps:
+  - {at: 0, action: sound, sound: "minecraft:block.bell.use", volume: 2.0, pitch: 0.8}
+  - {at: 0, action: title, text: "<gold><bold>LAW</bold>", sub: "<yellow>you are under arrest", in: 5, stay: 50, out: 10}
+  - {at: 30, action: join, name: "<gold><bold>King LettuceK"}
+  - {at: 40, action: chat, name: "<gold><bold>King LettuceK", message: "<white>Surround them."}
+  - {at: 50, action: spawn, group: "law", count: 20, leaders: true, spread: 8}
+  - {at: 60, action: target, group: "law"}
+  - {at: 61, action: actionbar, text: "<red>LAW is coming for you"}
