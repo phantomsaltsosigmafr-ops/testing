@@ -26,8 +26,9 @@ This plugin only ever *runs* `/vexbot`. It never registers it.
 2. **Portals open:** 3 portals tear open every half second at random spots within 40 blocks, hanging 2–18 blocks above the ground. Each one opens with reverse-portal particles, smoke, the portal trigger sound and glass breaking. The sky fills with 60 portals in about 10 seconds.
 3. **The NULL pour out:** every 2 seconds each portal has a 25% chance to pour.
    - Pouring runs the VexBot command inside the bottom of the portal, with an ink and portal burst and an Enderman-teleport sound.
-   - The bot is nudged out of the portal toward the centre, so it falls out of the sky.
    - Pouring pauses while 60 poured bots are alive and resumes as they die. At most 400 come out per invasion.
+   - **The portals repair themselves.** VexBot's `nullportalspawn` builds and clears its own portal blocks at the spot. That used to eat chunks out of the frames; now any missing block is put back within a tenth of a second.
+   - Set `portal.build: false` to only call VexBot at the spots, without these portals.
 4. **Portals hum:** vanilla nether-portal particles and sounds, plus extra drifting portal particles.
 5. **Collapse:** after 120 seconds an Elder Guardian curse sounds. The portals then collapse two at a time in puffs of smoke and ink until the sky is clear.
 
@@ -52,7 +53,7 @@ Settings in `totem:`:
 - `close-portals: true` makes the invasion collapse instead.
 - `kill-radius` limits the wave (0 = everywhere).
 
-The totem only knows about bots it saw come out of the portals. For other VexBot bots, add VexBot's own kill command to `totem.kill-commands`.
+The totem knows which bots came out of the portals. That's anything new (mobs, or VexBot's fake players joining) that shows up within 16 blocks of a portal in the 10 seconds after it poured. You can change this with `spawn.capture-radius` / `capture-seconds`. Real players who have played before are never counted. `/uss status` shows how many are alive. For other VexBot bots, add VexBot's own kill command to `totem.kill-commands`.
 
 ## Commands
 
@@ -60,7 +61,7 @@ All commands use the `uss.admin` permission (default: op). They work from player
 
 | Command | What it does |
 |---|---|
-| `/uss start` | Invasion centred on you |
+| `/uss start` (or `/uss null`, `/uss invasion`) | The whole invasion in one command, centred on you |
 | `/uss start at <x> <y> <z> [world]` | Invasion centred on a point (console / command blocks) |
 | `/uss start <player>` | Invasion centred on a player |
 | `/uss stop` | Portals collapse a few at a time |
@@ -87,17 +88,17 @@ You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 dura
 
 | Section | What it controls |
 |---|---|
-| `spawn` | The command(s) run per pour. Default `vexbot nullportalspawn {x} {y} {z} {count}`. Placeholders: `{x} {y} {z} {xd} {yd} {zd} {count} {world} {portal} {invasion} {facing} {yaw}`. Also run-as, count, interval, chance, alive cap, total cap and the nudge out of the portal |
+| `spawn` | The command(s) run per pour. Default `vexbot nullportalspawn {x} {y} {z} {count}`. Placeholders: `{x} {y} {z} {xd} {yd} {zd} {count} {world} {portal} {invasion} {facing} {yaw}`. Also run-as, count, interval, chance, alive cap, total cap, and how bots are recognised (`capture-radius`, `capture-seconds`) |
 | `invasion` | Radius, max portals, wave size and speed, height above ground, spacing, collapse speed, duration, optional storm, keep chunks loaded, `start-commands`/`end-commands`, and a one-off `leader` arrival part-way through |
 | `totem` | Name, lore, glint, optional `item-model` (resource pack, 1.21.4+), kill radius, wave speed, quiet time, close portals, extra kill commands |
-| `portal` | Opening size (2×3 = the classic 4×5 portal) and frame blocks (weighted, e.g. `["OBSIDIAN:4", "CRYING_OBSIDIAN:1"]`) |
+| `portal` | `build` (our floating portals on/off), `self-repair`, opening size (2×3 = the classic 4×5 portal) and frame blocks (weighted, e.g. `["OBSIDIAN:4", "CRYING_OBSIDIAN:1"]`) |
 | `effects` | Every particle and sound, one line each: `"PARTICLE count across up out speed [colour/block]"` and `"sound.key volume pitch"` |
 | `messages` | Command replies (MiniMessage) |
 
 ## Build
 
 ```bash
-./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-3.0.0.jar
+./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.0.0.jar
 ./gradlew runServer  # local Paper 1.21.11 test server
 ```
 
@@ -108,7 +109,7 @@ GitHub Actions (`.github/workflows/release.yml`) builds every push. Pushes to th
 If `/plugins` doesn't list UnstableSMP:
 1. Make sure the jar in `plugins/` is about **70 KB** and ends in `.jar`. A tiny file means the download saved a web page instead; upload it with your host's file manager.
 2. Remove any older UnstableSMP jar, because two jars with the same plugin name clash.
-3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v3.0.0`, or a red error line explaining why it couldn't.
+3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.0.0`, or a red error line explaining why it couldn't.
 
 ## Tested
 
@@ -118,4 +119,5 @@ On headless Paper 1.21.11 with a stand-in `/vexbot` plugin that logs every call:
 - **Performance:** the server averaged about **3 ms per tick** with 60 portals open.
 - **Cleanup:** after the collapse a block scan found **0** nether portal or obsidian blocks left.
 - **Totem of Null:** popped on a zombie holding it. The zombie survived, the totem was used up, and every NULL died (60 alive to 0). The portals went quiet for 10 seconds, then pouring resumed.
+- **VexBot imitation:** a stand-in builds its own portal over each spot, clears it 1.5 s later, then spawns its bots 3 blocks off. All 60 portals stayed whole (360/360 portal blocks), those late bots were recognised, and the totem wiped them.
 - **Other versions:** earlier builds of the same restore and spawn code were also tested on Paper 1.21.4 and survived a hard kill mid-event.

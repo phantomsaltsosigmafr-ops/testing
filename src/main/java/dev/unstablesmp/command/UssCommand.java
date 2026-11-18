@@ -48,7 +48,7 @@ public final class UssCommand implements TabExecutor {
         String sub = args.length == 0 ? "help" : args[0].toLowerCase(Locale.ROOT);
         String[] rest = args.length == 0 ? args : Arrays.copyOfRange(args, 1, args.length);
         switch (sub) {
-            case "start" -> start(sender, rest);
+            case "start", "invasion", "null" -> start(sender, rest);
             case "stop" -> stop(sender, rest);
             case "status" -> status(sender);
             case "totem" -> totem(sender, rest);

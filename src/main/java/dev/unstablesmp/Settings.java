@@ -64,9 +64,7 @@ public final class Settings {
     public final double chance;
     public final int maxAlive;
     public final int maxTotal;
-    public final boolean push;
-    public final double pushSpeed;
-    public final double pushUp;
+    public final double captureRadius;
     public final int captureTicks;
 
     // ---- the invasion
@@ -98,6 +96,8 @@ public final class Settings {
     public final List<String> totemKillCommands;
 
     // ---- portal look
+    public final boolean buildPortals;
+    public final boolean selfRepair;
     public final int width;
     public final int height;
     public final List<Material> frame;
@@ -115,10 +115,8 @@ public final class Settings {
         chance = Math.max(0, Math.min(1, sp.getDouble("chance-per-portal", 0.25)));
         maxAlive = Math.max(0, sp.getInt("max-alive", 60));
         maxTotal = Math.max(0, sp.getInt("max-total", 400));
-        push = sp.getBoolean("push-spawned", true);
-        pushSpeed = sp.getDouble("push-speed", 0.4);
-        pushUp = sp.getDouble("push-up", 0.15);
-        captureTicks = Math.max(0, sp.getInt("capture-ticks", 3));
+        captureRadius = Math.max(2, sp.getDouble("capture-radius", 16));
+        captureTicks = Math.max(20, sp.getInt("capture-seconds", 10) * 20);
 
         ConfigurationSection in = section(c, "invasion");
         radius = Math.max(4, in.getInt("radius", 40));
@@ -139,6 +137,8 @@ public final class Settings {
         leaderCommands = commandList(le.getStringList("commands"));
 
         ConfigurationSection po = section(c, "portal");
+        buildPortals = po.getBoolean("build", true);
+        selfRepair = po.getBoolean("self-repair", true);
         width = Math.max(2, Math.min(21, po.getInt("width", 2)));
         height = Math.max(3, Math.min(21, po.getInt("height", 3)));
         frame = weighted(po.getStringList("frame"), log);

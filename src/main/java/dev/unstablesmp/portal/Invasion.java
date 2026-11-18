@@ -19,7 +19,6 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.util.Vector;
 
 /**
  * The NULL portal invasion: dozens of floating nether portals tear open in waves over an area, VexBot's bots pour out
@@ -163,7 +162,8 @@ public final class Invasion {
         if (age % o.interval == 0) spawnRound();
         int durationTicks = o.durationSeconds * 20;
         if (!leaderDone && !portals.isEmpty() && age >= durationTicks * s.leaderAtPercent / 100) leader();
-        if (age % 4 == 0) for (FloatingPortal p : portals) play("ambient", p, p.centreX(), p.centreY(), p.centreZ());
+        if (s.selfRepair && age % 2 == 0) for (FloatingPortal p : portals) p.repair();
+        if (age % 4 == 0) for (FloatingPortal p : portals) if (p.isBuilt()) play("ambient", p, p.centreX(), p.centreY(), p.centreZ());
         if (age % 40 == 0 && !portals.isEmpty()) {
             FloatingPortal p = portals.get(ThreadLocalRandom.current().nextInt(portals.size()));
             play("ambient-sound", p, p.centreX(), p.centreY(), p.centreZ());
@@ -193,7 +193,7 @@ public final class Invasion {
                 }
             }
             if (tooClose) continue;
-            FloatingPortal p = FloatingPortal.tryBuild(world, x, y, z, r.nextBoolean(), s, mgr.journal());
+            FloatingPortal p = FloatingPortal.tryBuild(world, x, y, z, r.nextBoolean(), s, mgr.journal(), s.buildPortals);
             if (p == null) continue;
             portals.add(p);
             play("portal-open", p, p.centreX(), p.centreY(), p.centreZ());
@@ -245,8 +245,7 @@ public final class Invasion {
             Player pl = Bukkit.getPlayer(starter);
             if (pl != null) sender = pl;
         }
-        Vector push = s.push ? new Vector(p.nx() * side * s.pushSpeed, s.pushUp, p.nz() * side * s.pushSpeed) : null;
-        mgr.capture().open(world, x, y, z, push, mgr.now(), s.captureTicks, this);
+        mgr.capture().open(world, x, y, z, s.captureRadius, mgr.now(), s.captureTicks, this);
         for (String t : templates) {
             String cmd = SpawnCommand.format(t, values);
             try {
@@ -277,6 +276,7 @@ public final class Invasion {
     }
 
     private void closing() {
+        if (s.selfRepair && age % 2 == 1) for (FloatingPortal p : portals) p.repair();
         if (age % 2 == 0) {
             ThreadLocalRandom r = ThreadLocalRandom.current();
             for (int i = 0; i < s.closePerStep && !portals.isEmpty(); i++) {

@@ -2,12 +2,8 @@ package dev.unstablesmp.portal;
 
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -15,71 +11,95 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.util.Vector;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 /**
- * Catches whatever the spawn command creates (VexBot's bots appear during the command or a tick or two later) right
- * at the portal and gives it a shove out of it, so bots visibly tumble out instead of popping in place.
+ * Works out which bots came out of the NULL portals, so the alive cap and the Totem of Null know them. VexBot's bots
+ * are fake players that "join" while its portal animates, often a few seconds after the command and not exactly on
+ * the spot, sometimes spawned elsewhere and teleported in. So each spawn spot is watched for a while, and anything new
+ * is followed for a few seconds to see whether it shows up at a spot.
  */
 public final class SpawnCapture implements Listener {
 
-    private record Window(World world, double x, double y, double z, Vector push, int until, Set<UUID> playersBefore,
-                          Invasion owner) {
+    private record Window(World world, double x, double y, double z, double r2, int until, Invasion owner) {
     }
 
-    private record Pending(Entity entity, Vector push, int at) {
+    private static final class Candidate {
+        final Entity entity;
+        final int until;
+
+        Candidate(Entity entity, int until) {
+            this.entity = entity;
+            this.until = until;
+        }
     }
 
     private final List<Window> windows = new ArrayList<>();
-    private final List<Pending> pending = new ArrayList<>();
+    private final List<Candidate> candidates = new ArrayList<>();
     private int now;
 
-    /**
-     * Opens a capture window around a spawn point for {@code ticks} ticks after this one. Captured bots count toward
-     * the breach's alive cap; {@code push} (may be null) shoves them out of the portal.
-     */
-    public void open(World w, double x, double y, double z, Vector push, int now, int ticks, Invasion owner) {
-        Set<UUID> before = new HashSet<>();
-        for (Player p : Bukkit.getOnlinePlayers()) before.add(p.getUniqueId());
-        windows.add(new Window(w, x, y, z, push, now + ticks, before, owner));
+    /** Watches a spawn spot for {@code ticks} ticks: new bots within {@code radius} count as that invasion's. */
+    public void open(World w, double x, double y, double z, double radius, int now, int ticks, Invasion owner) {
+        windows.add(new Window(w, x, y, z, radius * radius, now + ticks, owner));
         this.now = now;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onAdd(EntityAddToWorldEvent e) {
-        if (windows.isEmpty()) return;
-        Entity ent = e.getEntity();
-        if (!(ent instanceof LivingEntity)) return;
-        if (ent instanceof Player p) {
-            // a real player who was already online is never pushed; a bot that just "joined" is
-            for (Window w : windows) if (w.playersBefore().contains(p.getUniqueId())) return;
-        }
-        double ex = ent.getX(), ey = ent.getY(), ez = ent.getZ();
-        for (Window w : windows) {
-            if (w.world() != ent.getWorld()) continue;
-            double dx = ex - w.x(), dy = ey - w.y(), dz = ez - w.z();
-            if (dx * dx + dy * dy + dz * dz <= 20) {
-                if (w.owner() != null) w.owner().track(ent);
-                if (w.push() != null) pending.add(new Pending(ent, w.push(), now + 1));
-                return;
-            }
-        }
+        consider(e.getEntity());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent e) {
+        consider(e.getPlayer());
+    }
+
+    private void consider(Entity ent) {
+        if (windows.isEmpty() || !(ent instanceof LivingEntity)) return;
+        if (ent instanceof Player p && !looksLikeBot(p)) return;
+        for (Candidate c : candidates) if (c.entity == ent) return;
+        candidates.add(new Candidate(ent, now + 60));
+    }
+
+    /**
+     * A real player joining mid-invasion is never taken for a NULL: bots are fake players (no real connection) or
+     * brand-new names that have never played on the server before.
+     */
+    static boolean looksLikeBot(Player p) {
+        return p.getAddress() == null || !p.hasPlayedBefore();
     }
 
     public void tick(int now) {
         this.now = now;
         windows.removeIf(w -> w.until() < now);
-        if (pending.isEmpty()) return;
-        for (Iterator<Pending> it = pending.iterator(); it.hasNext(); ) {
-            Pending p = it.next();
-            if (p.at() > now) continue;
-            it.remove();
-            if (p.entity().isValid()) p.entity().setVelocity(p.push().clone());
+        if (candidates.isEmpty()) return;
+        for (Iterator<Candidate> it = candidates.iterator(); it.hasNext(); ) {
+            Candidate c = it.next();
+            Entity e = c.entity;
+            if (!e.isValid() || e.isDead() || c.until < now) {
+                it.remove();
+                continue;
+            }
+            Window w = windowAt(e);
+            if (w != null) {
+                if (w.owner() != null) w.owner().track(e);
+                it.remove();
+            }
         }
+    }
+
+    private Window windowAt(Entity e) {
+        double ex = e.getX(), ey = e.getY(), ez = e.getZ();
+        for (Window w : windows) {
+            if (w.world() != e.getWorld()) continue;
+            double dx = ex - w.x(), dy = ey - w.y(), dz = ez - w.z();
+            if (dx * dx + dy * dy + dz * dz <= w.r2()) return w;
+        }
+        return null;
     }
 
     public void clear() {
         windows.clear();
-        pending.clear();
+        candidates.clear();
     }
 }

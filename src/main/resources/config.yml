@@ -16,10 +16,10 @@ spawn:
   chance-per-portal: 0.25    # ...this likely (so with 60 portals, ~15 pour every round)
   max-alive: 60              # pause pouring while this many poured bots are alive, resume as they die (0 = off)
   max-total: 400             # never pour more than this in one invasion (0 = no limit)
-  push-spawned: true         # anything the command spawns in a portal gets nudged out of it
-  push-speed: 0.4
-  push-up: 0.15
-  capture-ticks: 3           # how long after each command to watch for spawned bots
+  # Which bots came out of a portal (for max-alive and the Totem of Null): anything new - mobs, or VexBot's fake
+  # players joining - that shows up within capture-radius blocks of a portal in the capture-seconds after it poured.
+  capture-radius: 16
+  capture-seconds: 10
 
 invasion:
   radius: 40                 # portals open anywhere within this many blocks of the centre
@@ -58,6 +58,8 @@ totem:
   kill-commands: []
 
 portal:
+  build: true                # build the floating obsidian portals (false = only call VexBot at the spots)
+  self-repair: true          # put back any portal block that gets removed (VexBot's own null portal clears blocks)
   width: 2                   # size of the opening (the obsidian frame goes around it): 2x3 = classic 4x5 portal
   height: 3
   frame: ["OBSIDIAN"]        # weighted, e.g. ["OBSIDIAN:4", "CRYING_OBSIDIAN:1"]
@@ -99,7 +101,7 @@ messages:
   prefix: "<dark_gray>[<dark_purple>NULL</dark_purple>]</dark_gray> <gray>"
   help: |-
     <dark_purple><bold>NULL portal invasion</bold></dark_purple> <dark_gray>- portals tear open and VexBot bots pour out
-    <white>/uss start</white> <gray>[here | at x y z [world] | player] [options]
+    <white>/uss start</white> <gray>[here | at x y z [world] | player] [options]</gray> <dark_gray>- the whole invasion in one command
     <dark_gray>   options: radius=40 portals=60 wave=3 duration=120 chance=0.25 interval=40 count=1 alive=60 max=400
     <white>/uss stop</white> <gray>[now]</gray> <dark_gray>- portals collapse (now = vanish instantly)
     <white>/uss totem</white> <gray>[player] [amount]</gray> <dark_gray>- Totem of Null: when it pops, every NULL dies

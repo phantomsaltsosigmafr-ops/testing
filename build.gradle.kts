@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.unstablesmp"
-version = "3.0.0"
+version = "4.0.0"
 
 repositories {
     maven("https://repo.papermc.io/repository/maven-public/") // also proxies Maven Central
