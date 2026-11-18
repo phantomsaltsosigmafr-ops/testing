@@ -21,6 +21,7 @@ All commands live under **`/uss`**. The plugin never registers `/vexbot` or `/ve
 ## File tree
 
 ```
+.github/workflows/          release.yml: builds, tests and publishes the jar as a GitHub release on every push
 build.gradle.kts            Paper 1.21.11 dev bundle (paperweight-userdev, Mojang mappings), run-paper, WorldGuard (compileOnly), JUnit
 settings.gradle.kts
 gradlew, gradle/wrapper/    Gradle 9.9.1 wrapper
@@ -64,6 +65,10 @@ src/main/java/dev/unstablesmp/
   cine/       CameraService (spline camera paths), SceneService (scenes/*.yml), Cinematics (fade/shake/slowmo/titles), FakeChat
 src/test/java/dev/unstablesmp/   formation math, slot assignment, army offsets, combos, config/messages checks
 ```
+
+## Download
+
+The newest jar is always on the **[latest release](https://github.com/phantomsaltsosigmafr-ops/testing/releases/latest)**: download `UnstableSMP-<version>.jar` there. GitHub Actions (`.github/workflows/release.yml`) rebuilds and republishes it, tests included, on every push to the default branch. Builds from other branches are attached to their Actions run.
 
 ## Build and install
 

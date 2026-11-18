@@ -1,0 +1,77 @@
+name: Build and release
+
+# Every push to the default branch builds the plugin, runs the tests and publishes the jar as the
+# GitHub release v<version> (replacing the previous build of that version). Other branches just build.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        run: ./gradlew build --no-daemon
+
+      - name: Find the jar
+        id: jar
+        run: |
+          JAR=$(ls build/libs/UnstableSMP-*.jar | grep -vE -- '-(dev|sources|javadoc)' | head -n1)
+          VERSION=${JAR#build/libs/UnstableSMP-}
+          VERSION=${VERSION%.jar}
+          echo "path=$JAR" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Built $JAR (version $VERSION)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UnstableSMP-${{ steps.jar.outputs.version }}
+          path: ${{ steps.jar.outputs.path }}
+
+      - name: Publish release
+        if: github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JAR: ${{ steps.jar.outputs.path }}
+          VERSION: ${{ steps.jar.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          SHORT=$(git rev-parse --short HEAD)
+          cat > notes.md <<NOTES
+          **UnstableSMP $VERSION** for **Paper 1.21.11** (Java 21). Built from commit $SHORT.
+
+          ### Install
+          1. Download **UnstableSMP-$VERSION.jar** below.
+          2. Put it in your server's \`plugins/\` folder (remove any older UnstableSMP jar first) and restart.
+          3. Optional: install WorldGuard 7 for region support.
+
+          ### Quick test
+          - \`/uss gui\`: command center
+          - \`/uss bot spawn 20 null\`: NULL bots with scrambled names and black skins (also in the tab list)
+          - \`/uss bot spawn 20 law\`: LAW bots with random skill tiers
+          - \`/uss battle null law 40\`: faction battle
+
+          Full commands, permissions and config are in the [README](https://github.com/${{ github.repository }}/blob/$GITHUB_SHA/README.md).
+          This release is rebuilt on every push, so it's always the newest build.
+          NOTES
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+            sleep 5
+          fi
+          gh release create "$TAG" "$JAR" --target "$GITHUB_SHA" --title "UnstableSMP $VERSION" --notes-file notes.md --latest
