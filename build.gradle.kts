@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.unstablesmp"
-version = "2.0.0"
+version = "3.0.0"
 
 repositories {
     maven("https://repo.papermc.io/repository/maven-public/") // also proxies Maven Central
@@ -32,6 +32,7 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.processResources {
     filteringCharset = "UTF-8"
+    inputs.property("version", project.version)
     filesMatching("plugin.yml") {
         expand("version" to project.version)
     }

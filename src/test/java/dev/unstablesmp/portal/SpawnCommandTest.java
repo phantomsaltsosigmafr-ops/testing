@@ -9,12 +9,11 @@ class SpawnCommandTest {
 
     @Test
     void formatsTheVexBotCommand() {
-        Site site = new Site(100, 63, -40, 0, 1);
-        Map<String, String> v = SpawnCommand.values(101, 64, -40, 101.5, 64.0, -39.5, 3, "world", 2, 7, site);
+        Map<String, String> v = SpawnCommand.values(101, 64, -40, 101.5, 64.0, -39.5, 3, "world", 2, 7, "south");
         assertEquals("vexbot nullportalspawn 101 64 -40 3",
                 SpawnCommand.format("vexbot nullportalspawn {x} {y} {z} {count}", v));
         assertEquals("tp 101.5 64.0 -39.5 world south 0.0 #2/7",
-                SpawnCommand.format("tp {xd} {yd} {zd} {world} {facing} {yaw} #{portal}/{breach}", v));
+                SpawnCommand.format("tp {xd} {yd} {zd} {world} {facing} {yaw} #{portal}/{invasion}", v));
     }
 
     @Test

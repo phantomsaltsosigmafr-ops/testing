@@ -54,9 +54,9 @@ jobs:
           TAG="v$VERSION"
           SHORT=$(git rev-parse --short HEAD)
           cat > notes.md <<NOTES
-          **UnstableSMP $VERSION**: NULL portal breach for **Paper 1.21.x** (Java 21). Built from commit $SHORT.
+          **UnstableSMP $VERSION**: NULL portal invasion for **Paper 1.21.x** (Java 21). Built from commit $SHORT.
 
-          Portals tear open around a point and each one runs \`vexbot nullportalspawn x y z <number>\` at its mouth over and over, so VexBot's bots pour out of the void.
+          Dozens of floating nether portals tear open in the sky and VexBot's bots pour out of them (\`vexbot nullportalspawn x y z <number>\` at random portals), then the portals collapse. No boss bar, no titles, no chat. There's also the **Totem of Null**: when it pops, every NULL dies.
 
           ### Install
           1. Download **UnstableSMP-$VERSION.jar** below.
@@ -64,9 +64,9 @@ jobs:
           3. Fully restart the server. VexBot must be installed for bots to pour out.
 
           ### Try it
-          - \`/uss start\`: breach around you (4 portals)
-          - \`/uss portal\`: one portal in front of you
-          - \`/uss stop\`: collapse everything (\`/uss stop now\` for instant)
+          - \`/uss start\`: invasion around you
+          - \`/uss totem\`: get a Totem of Null
+          - \`/uss stop\`: portals collapse (\`/uss stop now\` for instant)
 
           Full commands and config are in the [README](https://github.com/${{ github.repository }}/blob/$GITHUB_SHA/README.md).
           This release is rebuilt on every push, so it's always the newest build.

@@ -2,19 +2,17 @@ package dev.unstablesmp;
 
 import dev.unstablesmp.portal.Fx;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
-import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.MemoryConfiguration;
 
-/** Typed snapshot of config.yml. Rebuilt on /uss reload; running breaches keep the snapshot they started with. */
+/** Typed snapshot of config.yml. Rebuilt on /uss reload; a running invasion keeps the snapshot it started with. */
 public final class Settings {
 
     /** Inclusive integer range, written in config as {@code 3}, {@code "1-3"} or {@code [1, 3]}. */
@@ -29,12 +27,6 @@ public final class Settings {
 
         public int random() {
             return min == max ? min : ThreadLocalRandom.current().nextInt(min, max + 1);
-        }
-
-        /** Linear blend from min (t=0) to max (t=1); used for start-to-end ramps where min may exceed max. */
-        public static int lerp(int from, int to, double t) {
-            double c = Math.max(0, Math.min(1, t));
-            return (int) Math.round(from + (to - from) * c);
         }
 
         public static IntRange parse(Object raw, IntRange fallback) {
@@ -64,57 +56,51 @@ public final class Settings {
 
     public enum RunAs { CONSOLE, STARTER }
 
-    public enum Beam { NONE, CENTER, ALL }
-
     // ---- spawning (the VexBot command)
     public final List<String> commands;
     public final RunAs runAs;
-    public final int depth;
-    public final boolean spread;
-    public final IntRange countStart;
-    public final IntRange countEnd;
-    /** Ticks between pulses per portal at the start of the breach and at the end (it ramps between them). */
-    public final int intervalStart;
-    public final int intervalEnd;
-    public final int maxTotal;
+    public final IntRange count;
+    public final int spawnInterval;
+    public final double chance;
     public final int maxAlive;
-    public final int firstPulseDelay;
+    public final int maxTotal;
     public final boolean push;
     public final double pushSpeed;
     public final double pushUp;
     public final int captureTicks;
 
-    // ---- breach
+    // ---- the invasion
+    public final int radius;
+    public final int maxPortals;
+    public final int portalsPerWave;
+    public final int waveInterval;
+    public final int minHeight;
+    public final int maxHeight;
+    public final int minSpacing;
+    public final int closePerStep;
+    public final int durationSeconds;
+    public final boolean storm;
+    public final boolean loadChunks;
     public final List<String> startCommands;
     public final List<String> endCommands;
-    public final int portals;
-    public final IntRange radius;
-    public final int minSpacing;
-    public final int durationSeconds;
-    public final int warningSeconds;
-    public final int openStagger;
-    public final int closeStagger;
-    public final boolean storm;
-    public final boolean darkness;
-    public final int darknessRadius;
-    public final int broadcastRadius;
-    public final BossBar.Color barColor;
-    public final BossBar.Overlay barOverlay;
+    public final int leaderAtPercent;
+    public final List<String> leaderCommands;
+
+    // ---- totem of null
+    public final String totemName;
+    public final List<String> totemLore;
+    public final String totemItemModel;
+    public final boolean totemGlint;
+    public final int totemKillRadius;
+    public final double totemWaveSpeed;
+    public final boolean totemClosePortals;
+    public final int totemQuietSeconds;
+    public final List<String> totemKillCommands;
 
     // ---- portal look
     public final int width;
     public final int height;
     public final List<Material> frame;
-    public final Material corner;
-    public final Material surface;
-    public final Beam beam;
-    public final boolean lightning;
-    public final int buildTicks;
-    public final boolean corruption;
-    public final int corruptionRadius;
-    public final int corruptionMax;
-    public final List<Material> corruptionBlocks;
-    public final Set<Material> neverReplace;
 
     // ---- effects + text
     public final Map<String, Fx.Effect> effects;
@@ -122,61 +108,51 @@ public final class Settings {
 
     private Settings(ConfigurationSection c, Logger log) {
         ConfigurationSection sp = section(c, "spawn");
-        commands = new ArrayList<>();
-        for (String s : sp.getStringList("commands")) {
-            String t = s.trim();
-            if (t.startsWith("/")) t = t.substring(1);
-            if (!t.isEmpty()) commands.add(t);
-        }
+        commands = commandList(sp.getStringList("commands"));
         runAs = parseEnum(RunAs.class, sp.getString("run-as"), RunAs.CONSOLE, "spawn.run-as", log);
-        depth = Math.max(0, Math.min(6, sp.getInt("depth", 0)));
-        spread = sp.getBoolean("spread", true);
-        countStart = IntRange.parse(sp.get("count-start"), new IntRange(1, 2));
-        countEnd = IntRange.parse(sp.get("count-end"), new IntRange(2, 3));
-        int[] iv = startEnd(sp.get("interval-ticks"), 60, 24);
-        intervalStart = Math.max(2, iv[0]);
-        intervalEnd = Math.max(2, iv[1]);
-        maxTotal = Math.max(0, sp.getInt("max-total", 300));
+        count = IntRange.parse(sp.get("count"), new IntRange(1, 1));
+        spawnInterval = Math.max(1, sp.getInt("interval-ticks", 40));
+        chance = Math.max(0, Math.min(1, sp.getDouble("chance-per-portal", 0.25)));
         maxAlive = Math.max(0, sp.getInt("max-alive", 60));
-        firstPulseDelay = Math.max(0, sp.getInt("first-pulse-delay-ticks", 12));
+        maxTotal = Math.max(0, sp.getInt("max-total", 400));
         push = sp.getBoolean("push-spawned", true);
-        pushSpeed = sp.getDouble("push-speed", 0.55);
-        pushUp = sp.getDouble("push-up", 0.25);
+        pushSpeed = sp.getDouble("push-speed", 0.4);
+        pushUp = sp.getDouble("push-up", 0.15);
         captureTicks = Math.max(0, sp.getInt("capture-ticks", 3));
 
-        ConfigurationSection br = section(c, "breach");
-        startCommands = commandList(br.getStringList("start-commands"));
-        endCommands = commandList(br.getStringList("end-commands"));
-        portals = Math.max(1, Math.min(32, br.getInt("portals", 4)));
-        radius = IntRange.parse(br.get("radius"), new IntRange(14, 26));
-        minSpacing = Math.max(3, br.getInt("min-spacing", 9));
-        durationSeconds = Math.max(5, br.getInt("duration-seconds", 90));
-        warningSeconds = Math.max(0, br.getInt("warning-seconds", 6));
-        openStagger = Math.max(0, br.getInt("open-stagger-ticks", 22));
-        closeStagger = Math.max(0, br.getInt("close-stagger-ticks", 10));
-        storm = br.getBoolean("storm", true);
-        darkness = br.getBoolean("darkness", true);
-        darknessRadius = Math.max(0, br.getInt("darkness-radius", 28));
-        broadcastRadius = Math.max(0, br.getInt("broadcast-radius", 128));
-        barColor = parseEnum(BossBar.Color.class, br.getString("bossbar-color"), BossBar.Color.PURPLE, "breach.bossbar-color", log);
-        barOverlay = parseEnum(BossBar.Overlay.class, br.getString("bossbar-style"), BossBar.Overlay.NOTCHED_20, "breach.bossbar-style", log);
+        ConfigurationSection in = section(c, "invasion");
+        radius = Math.max(4, in.getInt("radius", 40));
+        maxPortals = Math.max(1, Math.min(500, in.getInt("max-portals", 60)));
+        portalsPerWave = Math.max(1, in.getInt("portals-per-wave", 3));
+        waveInterval = Math.max(1, in.getInt("wave-interval-ticks", 10));
+        minHeight = Math.max(0, in.getInt("min-height-above-ground", 2));
+        maxHeight = Math.max(minHeight, in.getInt("max-height-above-ground", 18));
+        minSpacing = Math.max(0, in.getInt("min-spacing", 4));
+        closePerStep = Math.max(1, in.getInt("close-per-step", 2));
+        durationSeconds = Math.max(5, in.getInt("duration-seconds", 120));
+        storm = in.getBoolean("storm", false);
+        loadChunks = in.getBoolean("keep-chunks-loaded", true);
+        startCommands = commandList(in.getStringList("start-commands"));
+        endCommands = commandList(in.getStringList("end-commands"));
+        ConfigurationSection le = section(in, "leader");
+        leaderAtPercent = Math.max(0, Math.min(100, le.getInt("at-percent", 40)));
+        leaderCommands = commandList(le.getStringList("commands"));
 
         ConfigurationSection po = section(c, "portal");
-        width = Math.max(1, Math.min(9, po.getInt("width", 3)));
-        height = Math.max(2, Math.min(12, po.getInt("height", 5)));
-        frame = materials(po.getStringList("frame"), List.of(Material.OBSIDIAN), "portal.frame", log);
-        corner = material(po.getString("corners"), Material.CRYING_OBSIDIAN, "portal.corners", log);
-        surface = material(po.getString("surface"), Material.END_GATEWAY, "portal.surface", log);
-        beam = parseEnum(Beam.class, po.getString("opening-beam"), Beam.CENTER, "portal.opening-beam", log);
-        lightning = po.getBoolean("lightning", true);
-        buildTicks = Math.max(1, po.getInt("build-ticks", 30));
-        ConfigurationSection co = section(po, "corruption");
-        corruption = co.getBoolean("enabled", true);
-        corruptionRadius = Math.max(1, Math.min(16, co.getInt("radius", 6)));
-        corruptionMax = Math.max(0, co.getInt("max-blocks", 70));
-        corruptionBlocks = weighted(co.getStringList("blocks"), log);
-        neverReplace = EnumSet.noneOf(Material.class);
-        neverReplace.addAll(materials(po.getStringList("never-replace"), List.of(Material.BEDROCK), "portal.never-replace", log));
+        width = Math.max(2, Math.min(21, po.getInt("width", 2)));
+        height = Math.max(3, Math.min(21, po.getInt("height", 3)));
+        frame = weighted(po.getStringList("frame"), log);
+
+        ConfigurationSection to = section(c, "totem");
+        totemName = to.getString("name", "<!italic><dark_purple>Totem of Null");
+        totemLore = to.getStringList("lore");
+        totemItemModel = to.getString("item-model", "");
+        totemGlint = to.getBoolean("glint", true);
+        totemKillRadius = Math.max(0, to.getInt("kill-radius", 0));
+        totemWaveSpeed = Math.max(0.5, to.getDouble("wave-blocks-per-tick", 2.5));
+        totemClosePortals = to.getBoolean("close-portals", false);
+        totemQuietSeconds = Math.max(0, to.getInt("quiet-seconds", 10));
+        totemKillCommands = commandList(to.getStringList("kill-commands"));
 
         effects = new HashMap<>();
         ConfigurationSection fx = section(c, "effects");
@@ -206,7 +182,7 @@ public final class Settings {
 
     private static ConfigurationSection section(ConfigurationSection c, String key) {
         ConfigurationSection s = c == null ? null : c.getConfigurationSection(key);
-        return s != null ? s : new org.bukkit.configuration.MemoryConfiguration();
+        return s != null ? s : new MemoryConfiguration();
     }
 
     private static List<String> commandList(List<String> raw) {
@@ -219,25 +195,6 @@ public final class Settings {
         return out;
     }
 
-    /** {@code [start, end]}, {@code "start-end"} or a single number, kept in order (start may be larger than end). */
-    public static int[] startEnd(Object raw, int start, int end) {
-        if (raw == null) return new int[] {start, end};
-        try {
-            if (raw instanceof Number n) return new int[] {n.intValue(), n.intValue()};
-            if (raw instanceof List<?> l && !l.isEmpty()) {
-                int a = Integer.parseInt(String.valueOf(l.get(0)).trim());
-                return new int[] {a, l.size() > 1 ? Integer.parseInt(String.valueOf(l.get(1)).trim()) : a};
-            }
-            String s = String.valueOf(raw).trim();
-            int dash = s.indexOf('-', 1);
-            if (dash > 0) return new int[] {Integer.parseInt(s.substring(0, dash).trim()), Integer.parseInt(s.substring(dash + 1).trim())};
-            int v = Integer.parseInt(s);
-            return new int[] {v, v};
-        } catch (NumberFormatException ex) {
-            return new int[] {start, end};
-        }
-    }
-
     static <E extends Enum<E>> E parseEnum(Class<E> type, String raw, E fallback, String path, Logger log) {
         if (raw == null || raw.isBlank()) return fallback;
         try {
@@ -248,48 +205,29 @@ public final class Settings {
         }
     }
 
-    private static Material material(String raw, Material fallback, String path, Logger log) {
-        if (raw == null || raw.isBlank()) return fallback;
-        Material m = Material.matchMaterial(raw.trim());
-        if (m == null || !m.isBlock()) {
-            if (log != null) log.warning("config " + path + ": '" + raw + "' is not a block, using " + fallback);
-            return fallback;
-        }
-        return m;
-    }
-
-    private static List<Material> materials(List<String> raw, List<Material> fallback, String path, Logger log) {
-        List<Material> out = new ArrayList<>();
-        for (String s : raw) {
-            Material m = Material.matchMaterial(s.trim());
-            if (m != null && m.isBlock()) out.add(m);
-            else if (log != null) log.warning("config " + path + ": '" + s + "' is not a block, skipped");
-        }
-        return out.isEmpty() ? fallback : out;
-    }
-
-    /** {@code "BLACK_CONCRETE:4"} entries expanded by weight, so a random pick honours the weights. */
+    /** {@code "CRYING_OBSIDIAN:1"} entries expanded by weight, so a random pick honours the weights. */
     private static List<Material> weighted(List<String> raw, Logger log) {
         List<Material> out = new ArrayList<>();
         for (String s : raw) {
-            String[] p = s.split(":");
-            String name = p.length > 2 ? p[0] + ":" + p[1] : p[0];
+            String name = s;
             int weight = 1;
-            if (p.length >= 2) {
+            int colon = s.lastIndexOf(':');
+            if (colon > 0) {
                 try {
-                    weight = Math.max(1, Math.min(50, Integer.parseInt(p[p.length - 1].trim())));
+                    weight = Math.max(1, Math.min(50, Integer.parseInt(s.substring(colon + 1).trim())));
+                    name = s.substring(0, colon);
                 } catch (NumberFormatException ex) {
                     name = s;
                 }
             }
             Material m = Material.matchMaterial(name.trim());
-            if (m == null || !m.isBlock() || m.hasGravity()) {
-                if (log != null) log.warning("config portal.corruption.blocks: '" + s + "' is not a solid non-falling block, skipped");
+            if (m == null || !m.isBlock() || !m.isSolid() || m.hasGravity()) {
+                if (log != null) log.warning("config portal.frame: '" + s + "' is not a solid, non-falling block, skipped");
                 continue;
             }
             for (int i = 0; i < weight; i++) out.add(m);
         }
-        if (out.isEmpty()) out.add(Material.BLACK_CONCRETE);
+        if (out.isEmpty()) out.add(Material.OBSIDIAN);
         return out;
     }
 }

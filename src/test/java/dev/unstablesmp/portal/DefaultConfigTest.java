@@ -21,8 +21,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 
 class DefaultConfigTest {
-    private static final List<String> PLACEHOLDERS = List.of("portals", "open", "seconds", "time", "spawned", "max",
-            "x", "y", "z", "world", "facing", "count", "id", "phase", "name", "option", "player", "command", "alive");
+    private static final List<String> PLACEHOLDERS = List.of("portals", "seconds", "spawned", "radius",
+            "x", "y", "z", "world", "count", "id", "phase", "option", "player", "command", "alive");
 
     private static YamlConfiguration config() {
         var in = Objects.requireNonNull(DefaultConfigTest.class.getClassLoader().getResourceAsStream("config.yml"));
@@ -33,17 +33,12 @@ class DefaultConfigTest {
     void spawnCommandAndNamesAreValid() {
         YamlConfiguration c = config();
         assertEquals(List.of("vexbot nullportalspawn {x} {y} {z} {count}"), c.getStringList("spawn.commands"));
-        int[] iv = Settings.startEnd(c.get("spawn.interval-ticks"), 0, 0);
-        assertEquals(60, iv[0]);
-        assertEquals(24, iv[1]);
-        for (String m : c.getStringList("portal.frame")) assertNotNull(Material.matchMaterial(m), m);
-        for (String m : c.getStringList("portal.never-replace")) assertNotNull(Material.matchMaterial(m), m);
-        for (String m : c.getStringList("portal.corruption.blocks")) assertNotNull(Material.matchMaterial(m.split(":")[0]), m);
-        assertNotNull(Material.matchMaterial(c.getString("portal.surface")));
+        assertEquals(60, c.getInt("invasion.max-portals"));
+        assertEquals(40, c.getInt("invasion.radius"));
+        for (String m : c.getStringList("portal.frame")) assertNotNull(Material.matchMaterial(m.split(":")[0]), m);
         var effects = c.getConfigurationSection("effects");
-        for (String key : List.of("warning-start", "warning-pulse", "warning-ground", "tear", "tear-ground", "frame-block",
-                "surface-row", "open", "ambient", "ambient-hum", "corrupt", "pulse", "pulse-surface", "surface-collapse",
-                "frame-crumble", "sealed")) {
+        for (String key : List.of("start", "portal-open", "spawn", "ambient", "ambient-sound", "leader", "closing", "portal-close",
+                "totem-pop", "totem-kill")) {
             assertTrue(effects.isConfigurationSection(key), "effect " + key + " missing");
             var e = effects.getConfigurationSection(key);
             assertFalse(e.getStringList("particles").isEmpty() && e.getStringList("sounds").isEmpty(), key + " is empty");
@@ -55,6 +50,9 @@ class DefaultConfigTest {
                 assertTrue(line.trim().matches("minecraft:[a-z0-9_.]+ [0-9.]+ [0-9.]+(-[0-9.]+)?"), "effects." + key + ": bad sound " + line);
             }
         }
+        assertFalse(c.getString("messages.help", "").toLowerCase().contains("bossbar"));
+        assertTrue(c.isConfigurationSection("totem"));
+        assertEquals(0, c.getInt("totem.kill-radius"));
     }
 
     @Test
@@ -77,11 +75,5 @@ class DefaultConfigTest {
         assertEquals(new Settings.IntRange(1, 3), Settings.IntRange.parse("3-1", null));
         assertEquals(new Settings.IntRange(4, 4), Settings.IntRange.parse(4, null));
         assertEquals(new Settings.IntRange(2, 5), Settings.IntRange.parse(List.of(2, 5), null));
-        assertEquals(50, Settings.IntRange.lerp(50, 18, 0));
-        assertEquals(18, Settings.IntRange.lerp(50, 18, 1));
-        assertEquals(34, Settings.IntRange.lerp(50, 18, 0.5));
-        int[] se = Settings.startEnd("60-20", 1, 1);
-        assertEquals(60, se[0]);
-        assertEquals(20, se[1]);
     }
 }

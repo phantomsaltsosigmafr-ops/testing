@@ -6,9 +6,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 
 /**
- * Builds the spawn command for one pulse, e.g. {@code vexbot nullportalspawn {x} {y} {z} {count}}.
- * Placeholders: {x} {y} {z} (block), {xd} {yd} {zd} (exact, one decimal), {count}, {world}, {portal}, {breach},
- * {facing} (north/south/east/west), {yaw} (degrees bots should face).
+ * Builds the spawn command for one portal, e.g. {@code vexbot nullportalspawn {x} {y} {z} {count}}.
+ * Placeholders: {x} {y} {z} (block), {xd} {yd} {zd} (exact, one decimal), {count}, {world}, {portal}, {invasion},
+ * {facing} (north/south/east/west: the side bots come out of), {yaw} (degrees bots should face).
  */
 public final class SpawnCommand {
     private SpawnCommand() {
@@ -37,14 +37,19 @@ public final class SpawnCommand {
     }
 
     public static Map<String, String> values(int x, int y, int z, double xd, double yd, double zd, int count, String world,
-                                             int portal, int breach, Site site) {
-        float yaw = site.fx() == 1 ? -90f : site.fx() == -1 ? 90f : site.fz() == 1 ? 0f : 180f;
+                                             int portal, int invasion, String facing) {
+        float yaw = switch (facing) {
+            case "east" -> -90f;
+            case "west" -> 90f;
+            case "south" -> 0f;
+            default -> 180f;
+        };
         return Map.ofEntries(
                 Map.entry("x", Integer.toString(x)), Map.entry("y", Integer.toString(y)), Map.entry("z", Integer.toString(z)),
                 Map.entry("xd", one(xd)), Map.entry("yd", one(yd)), Map.entry("zd", one(zd)),
                 Map.entry("count", Integer.toString(count)), Map.entry("world", world),
-                Map.entry("portal", Integer.toString(portal)), Map.entry("breach", Integer.toString(breach)),
-                Map.entry("facing", site.facingName()), Map.entry("yaw", one(yaw)));
+                Map.entry("portal", Integer.toString(portal)), Map.entry("invasion", Integer.toString(invasion)),
+                Map.entry("breach", Integer.toString(invasion)), Map.entry("facing", facing), Map.entry("yaw", one(yaw)));
     }
 
     private static String one(double v) {

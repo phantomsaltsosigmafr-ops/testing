@@ -1,160 +1,117 @@
-# UnstableSMP - NULL portal breach
-# Portals tear open around a point and VexBot's bots pour out of them. Each open portal runs the spawn command
-# at its mouth over and over, faster and bigger as the breach goes on.
-# /uss reload applies changes (a breach that's already running keeps the settings it started with).
+# UnstableSMP - NULL portal invasion
+# Dozens of floating nether portals tear open in waves over an area and VexBot's bots pour out of them, then the
+# portals collapse. No boss bar, no titles, no chat: players only see and hear it happen.
+# /uss reload applies changes (an invasion that's already running keeps the settings it started with).
 
 spawn:
-  # Run once per pulse, per portal, by the console. Placeholders:
-  #   {x} {y} {z} block coords of the portal mouth   {xd} {yd} {zd} same with one decimal
-  #   {count} bots this pulse   {world}   {portal} (1, 2, ...)   {breach}   {facing} (north/...)   {yaw}
-  # Add more lines to run more commands per pulse (e.g. a sound or a title from another plugin).
+  # Run by the console at a portal each time bots come through it. Placeholders:
+  #   {x} {y} {z} block inside the bottom of the portal   {xd} {yd} {zd} same with one decimal
+  #   {count} bots this time   {world}   {portal} (1, 2, ...)   {invasion}   {facing} side they come out   {yaw}
+  # Add more lines to run more commands each time.
   commands:
     - "vexbot nullportalspawn {x} {y} {z} {count}"
   run-as: CONSOLE            # CONSOLE, or STARTER (the player who ran /uss start, if online)
-  depth: 0                   # 0 = spawn inside the void so they walk out of it; 1+ = that many blocks in front
-  spread: true               # spawn at random columns across the opening instead of always the middle
-  count-start: 1-2           # bots per pulse when a portal first opens...
-  count-end: 2-3             # ...growing to this by the end of the breach
-  interval-ticks: [60, 24]   # ticks between pulses per portal: at the start, at the end (20 ticks = 1 second)
+  count: 1                   # bots per portal each time (a range like 1-2 works)
+  interval-ticks: 40         # every 2 seconds each portal gets a chance to pour...
+  chance-per-portal: 0.25    # ...this likely (so with 60 portals, ~15 pour every round)
   max-alive: 60              # pause pouring while this many poured bots are alive, resume as they die (0 = off)
-  max-total: 300             # never pour more than this in one breach (0 = no limit)
-  first-pulse-delay-ticks: 12
-  push-spawned: true         # anything the command spawns at the mouth gets shoved out of the portal
-  push-speed: 0.55
-  push-up: 0.25
-  capture-ticks: 3           # how long after each command to watch for spawned bots to shove
+  max-total: 400             # never pour more than this in one invasion (0 = no limit)
+  push-spawned: true         # anything the command spawns in a portal gets nudged out of it
+  push-speed: 0.4
+  push-up: 0.15
+  capture-ticks: 3           # how long after each command to watch for spawned bots
 
-breach:
-  # Console commands when the portals tear open / when the breach is over. Placeholders: {x} {y} {z} {world}
-  # {portals} {breach}. E.g. clear VexBot's bots after a recording: end-commands: ["vexbot <its clear command>"]
+invasion:
+  radius: 40                 # portals open anywhere within this many blocks of the centre
+  max-portals: 60
+  portals-per-wave: 3        # 3 portals every 10 ticks: the sky fills up in about 10 seconds
+  wave-interval-ticks: 10
+  min-height-above-ground: 2
+  max-height-above-ground: 18
+  min-spacing: 4
+  close-per-step: 2          # at the end, this many portals collapse every 2 ticks
+  duration-seconds: 120
+  storm: false               # thunderstorm during the invasion (previous weather restored after)
+  keep-chunks-loaded: true   # keep the area loaded so it runs even if nobody is close (command blocks)
+  # Console commands when the invasion starts / when the last portal is gone. Placeholders: {x} {y} {z} {world}
+  # {portals} {invasion}. E.g. clear VexBot's bots after a recording: end-commands: ["vexbot <its clear command>"]
   start-commands: []
   end-commands: []
-  portals: 4
-  radius: 14-26              # portals open this far from the centre, spread evenly around it, facing inward
-  min-spacing: 9
-  duration-seconds: 90       # how long portals stay open
-  warning-seconds: 6         # rumble + countdown before the first portal tears open (0 = none)
-  open-stagger-ticks: 22     # portals rip open one after another
-  close-stagger-ticks: 10
-  storm: true                # thunderstorm while a breach runs, previous weather restored after
-  darkness: true             # Darkness pulse on players near a portal when it tears open
-  darkness-radius: 28
-  broadcast-radius: 128      # who sees the titles and boss bar (0 = whole world)
-  bossbar-color: PURPLE      # PINK BLUE RED GREEN YELLOW PURPLE WHITE
-  bossbar-style: NOTCHED_20  # PROGRESS NOTCHED_6 NOTCHED_10 NOTCHED_12 NOTCHED_20
+  leader:                    # once, part-way through, the leader comes through a random portal
+    at-percent: 40
+    commands: []             # e.g. ["vexbot nullportalspawn {x} {y} {z} 1"] or a VexBot leader command
+
+# The Totem of Null (/uss totem [player] [amount]). Works like a normal totem and saves you, but when it pops a
+# wave rolls out from you and every NULL the invasions poured out dies, nearest first.
+totem:
+  name: "<!italic><gradient:#2b2b2b:#9d4edd:#2b2b2b><bold>Totem of Null</bold></gradient>"
+  lore:
+    - "<!italic><dark_gray>When it breaks, every <dark_purple>NULL</dark_purple> breaks with it."
+  glint: true
+  item-model: ""             # e.g. "unstablesmp:totem_of_null" to use a resource-pack model (Paper 1.21.4+)
+  kill-radius: 0             # 0 = every NULL everywhere; otherwise only within this many blocks of the holder
+  wave-blocks-per-tick: 2.5  # how fast the death wave rolls outward
+  quiet-seconds: 10          # after the wave the portals stop pouring for this long, then the NULL come back
+  close-portals: false       # true = the invasion in that world collapses instead
+  # Console commands run when it pops (for bots this plugin didn't see spawn, e.g. VexBot's own kill command).
+  # Placeholders: {x} {y} {z} {world} {player}
+  kill-commands: []
 
 portal:
-  width: 3                   # size of the opening (the frame goes around it)
-  height: 5
-  frame: [OBSIDIAN, OBSIDIAN, OBSIDIAN, CRYING_OBSIDIAN, BLACKSTONE]
-  corners: CRYING_OBSIDIAN
-  surface: END_GATEWAY       # the void: a black starfield that glows and never teleports anyone
-  opening-beam: CENTER       # END_GATEWAY beam into the sky as it opens: NONE, CENTER or ALL
-  lightning: true            # lightning strike (visual only) as each portal tears open
-  build-ticks: 30            # how long the frame takes to rise
-  corruption:                # the ground in front turns to null-stuff and heals when the portal closes
-    enabled: true
-    radius: 6
-    max-blocks: 70
-    blocks: ["BLACK_CONCRETE:4", "BLACKSTONE:3", "SCULK:3", "CRYING_OBSIDIAN:1", "POLISHED_BLACKSTONE:1"]
-  # Portals never go on these (or on chests, signs, any block entity, or another portal). Everything else they
-  # replace is put back exactly when the portal closes, even after a crash or kill (restore.log).
-  never-replace: [BEDROCK, BARRIER, END_PORTAL_FRAME, END_PORTAL, NETHER_PORTAL, COMMAND_BLOCK, CHAIN_COMMAND_BLOCK,
-                  REPEATING_COMMAND_BLOCK, STRUCTURE_BLOCK, JIGSAW, SPAWNER, REINFORCED_DEEPSLATE, NOTE_BLOCK,
-                  LIGHT, STRUCTURE_VOID]
+  width: 2                   # size of the opening (the obsidian frame goes around it): 2x3 = classic 4x5 portal
+  height: 3
+  frame: ["OBSIDIAN"]        # weighted, e.g. ["OBSIDIAN:4", "CRYING_OBSIDIAN:1"]
 
-# Particles: "NAME count across up out speed [extra]" (offsets are in portal space: across the portal, up, out of it).
+# Particles: "NAME count across up out speed [extra]" (offsets are in portal space: along it, up, out of it).
 #   extra = colour (#000000) for DUST, or a block / "ground" for BLOCK.
-# Sounds: "key volume pitch" (pitch can be a range like 0.5-0.8).
+# Sounds: "key volume pitch" (pitch can be a range like 0.6-1.2).
 effects:
-  warning-start:
-    particles: ["SCULK_SOUL 60 8 1 8 0.02"]
-    sounds: ["minecraft:entity.elder_guardian.curse 3 0.5", "minecraft:ambient.cave 4 0.6"]
-  warning-pulse:
-    sounds: ["minecraft:entity.warden.heartbeat 5 0.5"]
-  warning-ground:
-    particles: ["BLOCK 28 1.6 0.05 1.0 0.15 ground", "SCULK_CHARGE_POP 6 1.4 0.1 1.0 0.02", "SMOKE 8 1.2 0.1 0.8 0.01"]
-    sounds: ["minecraft:block.deepslate.break 1.5 0.5-0.7"]
-  tear:
-    particles: ["EXPLOSION_EMITTER 1", "SONIC_BOOM 1", "REVERSE_PORTAL 260 1.2 2.4 0.4 1.2",
-                "SQUID_INK 90 1.0 2.0 1.0 0.25", "LARGE_SMOKE 60 1.2 2.2 1.2 0.05"]
-    sounds: ["minecraft:block.end_portal.spawn 5 0.6", "minecraft:entity.warden.sonic_boom 3 0.6",
-             "minecraft:entity.wither.spawn 2 1.3"]
-  tear-ground:
-    particles: ["BLOCK 120 2.5 0.1 2.5 0.3 ground", "DUST 60 2 0.2 2 0 #000000", "SCULK_SOUL 30 2 0.2 2 0.05"]
-  frame-block:
-    particles: ["BLOCK 14 0.3 0.3 0.3 0.1 CRYING_OBSIDIAN", "REVERSE_PORTAL 8 0.3 0.3 0.3 0.05", "DUST 6 0.35 0.35 0.35 0 #1A0A2E"]
-    sounds: ["minecraft:block.respawn_anchor.charge 1.4 0.5-0.8"]
-  surface-row:
-    particles: ["REVERSE_PORTAL 40 1.5 0.4 0.3 0.3", "SQUID_INK 10 1.4 0.3 0.2 0.05"]
-    sounds: ["minecraft:block.end_portal_frame.fill 1.6 0.5-0.7"]
-  open:
-    particles: ["REVERSE_PORTAL 200 1.2 2.5 0.3 1.5", "END_ROD 40 1 2 0.5 0.15", "WITCH 30 1.2 2.2 0.6 0.1"]
-    sounds: ["minecraft:entity.ender_dragon.growl 3 0.6", "minecraft:block.beacon.activate 3 0.5"]
-  ambient:
-    particles: ["REVERSE_PORTAL 6 1.3 2.0 0.15 0.02", "SQUID_INK 2 1.2 2.0 0.4 0.03", "SMOKE 3 1.4 2.2 0.6 0.02",
-                "ASH 6 2 2.5 1.5 0"]
-  ambient-hum:
-    particles: ["SCULK_SOUL 6 1.2 2 0.4 0.03"]
-    sounds: ["minecraft:block.portal.ambient 1.8 0.5", "minecraft:block.beacon.ambient 2 0.5"]
-  corrupt:
-    particles: ["SCULK_CHARGE_POP 3 0.3 0.05 0.3 0.01", "SQUID_INK 2 0.3 0.05 0.3 0.02"]
-    sounds: ["minecraft:block.sculk.spread 0.7 0.6-0.9"]
-  pulse:                     # at the spawn point, every time bots pour out
-    particles: ["REVERSE_PORTAL 70 0.4 0.9 0.4 0.6", "SQUID_INK 25 0.4 0.8 0.4 0.12", "LARGE_SMOKE 15 0.4 0.8 0.4 0.03",
-                "SCULK_SOUL 8 0.3 0.6 0.3 0.05"]
-    sounds: ["minecraft:entity.enderman.teleport 1.6 0.5-0.7", "minecraft:block.respawn_anchor.deplete 1.4 0.5-0.6"]
-  pulse-surface:             # the void ripples on each pulse
-    particles: ["SQUID_INK 20 1.2 2.0 0.2 0.15", "REVERSE_PORTAL 30 1.2 2.0 0.1 0.4"]
-  surface-collapse:
-    particles: ["REVERSE_PORTAL 60 1.3 0.4 0.3 0.8", "LARGE_SMOKE 20 1.3 0.4 0.4 0.03"]
-    sounds: ["minecraft:block.respawn_anchor.deplete 1.6 0.4-0.6"]
-  frame-crumble:
-    particles: ["BLOCK 30 0.6 0.6 0.6 0.2 OBSIDIAN", "LARGE_SMOKE 6 0.5 0.5 0.5 0.03"]
-    sounds: ["minecraft:block.deepslate_bricks.break 1.4 0.5-0.7"]
-  sealed:
-    particles: ["EXPLOSION 6 1 2 1 0", "SQUID_INK 40 1 2 1 0.2"]
-    sounds: ["minecraft:block.beacon.deactivate 3 0.5", "minecraft:block.conduit.deactivate 2 0.6"]
+  start:                     # at the centre when the invasion begins
+    sounds: ["minecraft:block.end_portal.spawn 3 0.5", "minecraft:ambient.cave 3 0.6"]
+  portal-open:
+    particles: ["REVERSE_PORTAL 80 0.6 1.2 0.6 0.2", "LARGE_SMOKE 20 0.6 1.2 0.6 0.02"]
+    sounds: ["minecraft:block.portal.trigger 0.6 0.6-1.2", "minecraft:block.glass.break 1.2 0.5"]
+  spawn:                     # each time bots come through a portal
+    particles: ["SQUID_INK 20 0.3 0.8 0.3 0.05", "REVERSE_PORTAL 40 0.3 1.0 0.3 0.3"]
+    sounds: ["minecraft:entity.enderman.teleport 1 0.5"]
+  ambient:                   # every portal, every 4 ticks
+    particles: ["PORTAL 6 0.5 1.0 0.5 0.5"]
+  ambient-sound:             # a random portal every 2 seconds
+    sounds: ["minecraft:block.portal.ambient 0.8 0.5-1.0"]
+  leader:
+    particles: ["REVERSE_PORTAL 200 1 2 1 0.5", "SQUID_INK 60 1 2 1 0.1"]
+    sounds: ["minecraft:entity.enderman.teleport 2 0.4"]
+  closing:                   # at the centre when the portals start collapsing
+    sounds: ["minecraft:entity.elder_guardian.curse 2 0.5"]
+  portal-close:
+    particles: ["LARGE_SMOKE 25 0.5 1.2 0.5 0.03", "SQUID_INK 15 0.5 1.2 0.5 0.05"]
+    sounds: ["minecraft:block.glass.break 1 0.6"]
+  totem-pop:                 # at whoever's Totem of Null popped (the normal totem animation plays too)
+    particles: ["SONIC_BOOM 1", "TOTEM_OF_UNDYING 160 1 1.5 1 0.9", "REVERSE_PORTAL 220 2.5 1.5 2.5 1.6",
+                "SQUID_INK 70 1.5 1.2 1.5 0.35"]
+    sounds: ["minecraft:entity.warden.sonic_boom 3 0.6", "minecraft:block.end_portal.spawn 2 1.4"]
+  totem-kill:                # on each NULL as the wave reaches it
+    particles: ["SQUID_INK 25 0.3 0.8 0.3 0.08", "REVERSE_PORTAL 30 0.3 0.8 0.3 0.4", "LARGE_SMOKE 10 0.3 0.6 0.3 0.02"]
+    sounds: ["minecraft:entity.enderman.teleport 0.8 0.5"]
 
-# MiniMessage text. Placeholders look like <portals>.
+# Replies to whoever runs /uss (MiniMessage). Players in the world never get chat from this plugin.
 messages:
-  prefix: "<dark_gray>[<gradient:#3b0a57:#b14cff><bold>NULL</bold></gradient><dark_gray>]</dark_gray> <gray>"
+  prefix: "<dark_gray>[<dark_purple>NULL</dark_purple>]</dark_gray> <gray>"
   help: |-
-    <gradient:#3b0a57:#b14cff><bold>NULL BREACH</bold></gradient> <dark_gray>- portals tear open and VexBot bots pour out
-    <white>/uss start</white> <gray>[here | at x y z [world] | player | spots] [options]
-    <dark_gray>   options: portals=4 radius=14-26 duration=90 warning=6 count=1-2 count-end=2-3 interval=60-24 alive=60 max=300
-    <white>/uss portal</white> <gray>[x y z [world]] [facing=north]</gray> <dark_gray>- one portal, in front of you or at coords
-    <white>/uss stop</white> <gray>[now]</gray> <dark_gray>- collapse every portal (now = instantly)
-    <white>/uss spot add|remove|list|clear</white> <gray>[name]</gray> <dark_gray>- saved portal spots for your map
+    <dark_purple><bold>NULL portal invasion</bold></dark_purple> <dark_gray>- portals tear open and VexBot bots pour out
+    <white>/uss start</white> <gray>[here | at x y z [world] | player] [options]
+    <dark_gray>   options: radius=40 portals=60 wave=3 duration=120 chance=0.25 interval=40 count=1 alive=60 max=400
+    <white>/uss stop</white> <gray>[now]</gray> <dark_gray>- portals collapse (now = vanish instantly)
+    <white>/uss totem</white> <gray>[player] [amount]</gray> <dark_gray>- Totem of Null: when it pops, every NULL dies
     <white>/uss status</white> <dark_gray>| <white>/uss reload
-  warning-title: "<black><obf>||</obf></black> <gradient:#5e5e5e:#b14cff><bold>REALITY IS TEARING</bold></gradient> <black><obf>||</obf></black>"
-  warning-subtitle: "<dark_gray>something is coming through..."
-  breach-title: "<gradient:#000000:#b14cff:#000000><bold>NULL BREACH</bold></gradient>"
-  breach-subtitle: "<dark_purple><portals> portals</dark_purple> <gray>have torn open"
-  sealed-title: "<gray><bold>SEALED</bold>"
-  sealed-subtitle: "<dark_gray>the portals collapse... for now"
-  bossbar-warning: "<dark_gray><obf>!!</obf></dark_gray> <gray>Breach in <white><seconds>s</white> <dark_gray><obf>!!</obf>"
-  bossbar-active: "<gradient:#3b0a57:#b14cff><bold>NULL BREACH</bold></gradient> <dark_gray>|</dark_gray> <gray><open>/<portals> portals</gray> <dark_gray>|</dark_gray> <white><time>"
-  bossbar-closing: "<dark_gray>The portals are collapsing..."
-  started: "Breach opening at <white><x> <y> <z></white> (<world>): <white><portals></white> portals for <white><seconds>s</white>."
-  no-sites: "<red>Couldn't fit any portal there. Try open, flatter ground or a different radius=."
-  portal-opened: "Portal tearing open at <white><x> <y> <z></white>, pouring <white><facing></white>."
-  portal-failed: "<red>A portal can't go there (protected blocks, another portal, or no ground)."
-  stopped: "Closing <white><count></white> breach(es)."
-  stopped-now: "Closed <white><count></white> breach(es) instantly; every block is back."
-  nothing-running: "No breach is running."
-  status-none: "No breach is running."
-  status-line: "#<id> <white><phase></white> in <world> at <x> <z>: <white><open>/<portals></white> portals open, <white><spawned></white> bots poured, <white><alive></white> alive"
-  reloaded: "Config reloaded. Running breaches keep their settings."
+  started: "Invasion at <white><x> <y> <z></white> (<world>): up to <white><portals></white> portals within <white><radius></white> blocks for <white><seconds>s</white>."
+  stopped: "Collapsing <white><count></white> invasion(s)."
+  stopped-now: "Closed <white><count></white> invasion(s) instantly; every block is back."
+  nothing-running: "No invasion is running."
+  status-line: "#<id> <white><phase></white> in <world> at <x> <z>: <white><portals></white> portals, <white><spawned></white> bots poured, <white><alive></white> alive"
+  reloaded: "Config reloaded. A running invasion keeps its settings."
   missing-command: "<red>The spawn command <white><command></white> isn't installed, so portals open but nothing pours out. Install VexBot or change spawn.commands in config.yml."
-  player-only: "<red>Only a player can do that without coordinates."
   bad-option: "<red>Didn't understand <white><option></white>."
   unknown-world: "<red>No world called <white><world></white>."
   unknown-player: "<red>No online player called <white><player></white>."
-  spot-added: "Saved portal spot <white><name></white> (pours <white><facing></white>)."
-  spot-removed: "Removed spot <white><name></white>."
-  spot-unknown: "<red>No spot called <white><name></white>."
-  spots-cleared: "Removed <white><count></white> spots."
-  spots-none: "No portal spots saved in <white><world></white>. Stand where a portal should be, look where bots should go, and use /uss spot add (name)."
-  spot-list-header: "<white><count></white> saved spots:"
-  spot-list-entry: "<dark_gray> - <white><name></white> <gray><world> <x> <y> <z>, pours <facing>"
+  totem-given: "Gave <white><player></white> <white><count></white>x Totem of Null."

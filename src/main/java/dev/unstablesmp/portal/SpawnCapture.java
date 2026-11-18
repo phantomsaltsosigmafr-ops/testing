@@ -19,12 +19,12 @@ import org.bukkit.util.Vector;
 
 /**
  * Catches whatever the spawn command creates (VexBot's bots appear during the command or a tick or two later) right
- * at the portal mouth and gives it a shove out of the portal, so bots visibly pour out instead of popping in place.
+ * at the portal and gives it a shove out of it, so bots visibly tumble out instead of popping in place.
  */
 public final class SpawnCapture implements Listener {
 
     private record Window(World world, double x, double y, double z, Vector push, int until, Set<UUID> playersBefore,
-                          Breach owner) {
+                          Invasion owner) {
     }
 
     private record Pending(Entity entity, Vector push, int at) {
@@ -38,7 +38,7 @@ public final class SpawnCapture implements Listener {
      * Opens a capture window around a spawn point for {@code ticks} ticks after this one. Captured bots count toward
      * the breach's alive cap; {@code push} (may be null) shoves them out of the portal.
      */
-    public void open(World w, double x, double y, double z, Vector push, int now, int ticks, Breach owner) {
+    public void open(World w, double x, double y, double z, Vector push, int now, int ticks, Invasion owner) {
         Set<UUID> before = new HashSet<>();
         for (Player p : Bukkit.getOnlinePlayers()) before.add(p.getUniqueId());
         windows.add(new Window(w, x, y, z, push, now + ticks, before, owner));
