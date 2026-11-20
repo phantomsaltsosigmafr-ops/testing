@@ -10,6 +10,8 @@ At the end the portals collapse and the sky is empty again. There's no boss bar,
 
 There's also the **Totem of Null**. It saves you like a normal totem, but when it pops a wave rolls out from you and every NULL dies.
 
+**VexBot commands:** [VEXBOT_COMMANDS.md](VEXBOT_COMMANDS.md) lists the VexBot commands that make the NULL break, build, grief and act like real players.
+
 **Download:** the newest jar is always on the **[latest release](https://github.com/phantomsaltsosigmafr-ops/testing/releases/latest)**.
 
 **Requirements:**
