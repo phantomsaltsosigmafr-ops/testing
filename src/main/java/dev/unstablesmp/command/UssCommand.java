@@ -25,7 +25,7 @@ import org.bukkit.entity.Player;
  * {@code ~}). Replies go only to whoever ran it; players in the world just see the invasion. Never registers /vexbot.
  */
 public final class UssCommand implements TabExecutor {
-    private static final List<String> SUBS = List.of("start", "stop", "status", "totem", "reload", "help");
+    private static final List<String> SUBS = List.of("start", "stop", "status", "totem", "residents", "reload", "help");
     private static final List<String> OPTIONS = List.of("radius=", "portals=", "wave=", "duration=", "chance=",
             "interval=", "count=", "alive=", "max=");
 
@@ -52,6 +52,7 @@ public final class UssCommand implements TabExecutor {
             case "stop" -> stop(sender, rest);
             case "status" -> status(sender);
             case "totem" -> totem(sender, rest);
+            case "residents", "life" -> residents(sender, rest);
             case "reload" -> {
                 plugin.reload();
                 msg(sender, "reloaded");
@@ -186,6 +187,39 @@ public final class UssCommand implements TabExecutor {
         msg(sender, "totem-given", Text.ph("player", target.getName()), Text.ph("count", Integer.toString(amount)));
     }
 
+    // ------------------------------------------------------------------ residents
+
+    /** {@code /uss residents on|off|status|sethome <name>}: the player-like bot population. */
+    private void residents(CommandSender sender, String[] args) {
+        var life = plugin.residents();
+        String sub = args.length == 0 ? "status" : args[0].toLowerCase(Locale.ROOT);
+        switch (sub) {
+            case "on", "start" -> {
+                life.start();
+                msg(sender, "residents-on");
+            }
+            case "off", "stop" -> {
+                life.stop();
+                msg(sender, "residents-off");
+            }
+            case "sethome" -> {
+                if (!(sender instanceof Player p) || args.length < 2) {
+                    msg(sender, "bad-option", Text.ph("option", "sethome <name> (as a player, standing at the new home)"));
+                    return;
+                }
+                Location l = p.getLocation();
+                life.setHome(args[1], p.getWorld(), l.getBlockX(), l.getBlockY(), l.getBlockZ());
+                msg(sender, "residents-home", Text.ph("player", args[1]));
+            }
+            default -> {
+                List<String> on = life.onlineNames();
+                msg(sender, "residents-status", Text.ph("phase", life.running() ? "on" : "off"),
+                        Text.ph("count", Integer.toString(on.size())), Text.ph("portals", Integer.toString(life.target())),
+                        Text.ph("player", on.isEmpty() ? "-" : String.join(", ", on)));
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private static Location origin(CommandSender sender) {
@@ -257,6 +291,9 @@ public final class UssCommand implements TabExecutor {
             return filter(opts, last);
         }
         if (sub.equals("stop") && args.length == 2) return filter(List.of("now"), last);
+        if ((sub.equals("residents") || sub.equals("life")) && args.length == 2) {
+            return filter(List.of("on", "off", "status", "sethome"), last);
+        }
         if (sub.equals("totem") && args.length == 2) {
             List<String> names = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) names.add(p.getName());

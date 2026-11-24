@@ -1,0 +1,49 @@
+package dev.unstablesmp.portal;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import dev.unstablesmp.life.LifeConfig;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.junit.jupiter.api.Test;
+
+class LifeConfigTest {
+
+    private static LifeConfig defaults() {
+        var in = Objects.requireNonNull(LifeConfigTest.class.getClassLoader().getResourceAsStream("config.yml"));
+        YamlConfiguration y = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
+        return LifeConfig.load(y.getConfigurationSection("residents"));
+    }
+
+    @Test
+    void defaultsLoad() {
+        LifeConfig c = defaults();
+        assertFalse(c.autoStart);
+        assertTrue(c.names.size() >= 40, "plenty of names");
+        for (String n : c.names) assertTrue(n.matches("[A-Za-z0-9_]{3,16}"), "valid Minecraft name: " + n);
+        assertTrue(c.activities.keySet().containsAll(java.util.List.of("home", "mine", "visit", "explore", "afk")));
+        assertEquals("vexbot spawn {name} {x} {y} {z}", c.joinCommands.get(0));
+        assertEquals("vexbot kill {name}", c.leaveCommands.get(0));
+        assertTrue(c.hideFromServerList);
+        assertFalse(c.greetings.isEmpty());
+        assertEquals(-50, c.mineDepth.min());
+        assertEquals(20, c.mineDepth.max());
+    }
+
+    @Test
+    void peakHoursWrapPastMidnight() {
+        LifeConfig c = defaults();
+        assertTrue(c.isPeak(18));
+        assertFalse(c.isPeak(3));
+        YamlConfiguration y = new YamlConfiguration();
+        y.set("peak-hours", "20-2");
+        LifeConfig w = LifeConfig.load(y);
+        assertTrue(w.isPeak(23));
+        assertTrue(w.isPeak(1));
+        assertFalse(w.isPeak(12));
+    }
+}

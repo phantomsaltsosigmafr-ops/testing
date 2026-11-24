@@ -59,6 +59,85 @@ totem:
   # Placeholders: {x} {y} {z} {world} {player}
   kill-commands: []
 
+# Residents: VexBot bots that live on the server like players. Off until /uss residents on (or auto-start: true).
+# They log on and off through the day (more at peak hours), each keeps its own home between sessions, and while online
+# they move between activities by running VexBot commands. They chat now and then, typing through normal chat.
+residents:
+  auto-start: false
+  population: 2-4            # how many are online at once...
+  peak-population: 4-7       # ...and during peak hours (server clock)
+  peak-hours: 16-23
+  session-minutes: 20-90     # how long one stays on before logging off
+  join-gap-seconds: 45-300   # time between one logging on/off and the next
+  hide-from-server-list: true  # the server list (player count + hover list) shows real players only
+  names: [Kxlvinn, frostbyte_, Mxrcuss, lilnugget42, ItzJaydn, zorvak, Blxzee, toastedbagel, NotKieran, ender_reece,
+          sleepyowl_, Cxllum, jxshh_, Lxvyy, moss_boss, xRhian, Pxlsar, Haydenyy, tomtomm_, cobbleking, OllieOx, dxmmy,
+          Kaizenn, rileyyy_, Shxdow_Fox, quartzqueen, bxnjii, Ashtonnn, pixel_pancake, Wrenzo, mxtty, Jxkey,
+          noodle_lord, Saphyr, kxrtis, OwenPlays_, emberlyn, Zxcky, beetroot_bandit, Fynnley, glowsquid_, Rxmi,
+          tired_tobi, Kxsper, llama_mama, Dexxyy, potatoprince, Nxva, Brodie_, cxrsonn]
+  homes:
+    world: ""                # empty = the main world
+    center: spawn            # "spawn" or "x z": homes are spread around this
+    distance: 60-400         # how far from the centre homes are
+    wander-radius: 12        # how far they roam around home
+    mine-y: -50-20           # mining trips dig down to around this height near home
+  hotspots: {}               # places they visit, e.g.  spawn: {x: 0, y: 70, z: 0}   shop: {x: 120, y: 68, z: -40}
+  # VexBot commands. Placeholders: {name} {x} {y} {z} (where they're going) {hx} {hy} {hz} (home) {radius} {world}
+  commands:
+    setup:                   # once, when residents switch on
+      - "vexbot settings wander on"
+      - "vexbot settings gotomining on"
+      - "vexbot settings pickuploot on"
+      - "vexbot settings equiparmor on"
+      - "vexbot settings botspawnmobs on"
+      - "vexbot settings revengemode on"
+      - "vexbot settings botping 65"
+      - "vexbot tag off"
+      - "vexbot team create residents"
+      - "vexbot team residents settings autotarget off"
+    join:
+      - "vexbot spawn {name} {x} {y} {z}"
+    after-join:              # 2 seconds later, once the bot is in
+      - "vexbot team join residents {name}"
+      - "vexbot wander {name} {radius} {hx} {hy} {hz}"
+    leave:
+      - "vexbot kill {name}"
+  activities:                # what they do while online (weight = how often, minutes = how long)
+    home:
+      weight: 5
+      minutes: 8-20
+      commands: ["vexbot goto {name} stop", "vexbot wander {name} {radius} {hx} {hy} {hz}"]
+    mine:                    # tunnels down near home (gotomining on)
+      weight: 3
+      minutes: 6-15
+      commands: ["vexbot wander {name} stop", "vexbot goto {name} {x} {y} {z}"]
+    visit:                   # walks to one of the hotspots (home if there are none)
+      weight: 2
+      minutes: 3-8
+      commands: ["vexbot wander {name} stop", "vexbot goto {name} {x} {y} {z}"]
+    explore:                 # heads off 50-170 blocks from home
+      weight: 1
+      minutes: 4-10
+      commands: ["vexbot wander {name} stop", "vexbot goto {name} {x} {y} {z}"]
+    afk:
+      weight: 1
+      minutes: 3-10
+      commands: ["vexbot goto {name} stop", "vexbot wander {name} stop"]
+  chat:
+    enabled: true
+    delay-seconds: 2-7
+    greet-chance: 0.45
+    bye-chance: 0.35
+    welcome-chance: 0.4      # when a real player joins, one resident may say hi
+    idle-chance-per-minute: 0.04
+    greetings: ["hi", "yo", "hey", "back", "o/", "hii", "sup", "hey guys"]
+    goodbyes: ["gtg", "cya", "bye", "gn", "gtg dinner", "brb", "cya guys", "off for now"]
+    welcome-back: ["wb {player}", "wb", "hey {player}", "yo {player}", "wb!"]
+    welcome-new: ["welcome {player}", "hi {player}", "welcome!", "yo welcome"]
+    idle: ["anyone got iron", "lag?", "where's the end portal", "need food lol", "anyone wanna trade",
+           "found diamonds", "creeper blew up my house", "lol", "this server is fun", "who wants to fight",
+           "anyone got spare logs", "i'm so lost", "brb", "nice"]
+
 portal:
   build: true                # build the floating obsidian portals (false = only call VexBot at the spots)
   self-repair: true          # put back any portal block that gets removed (VexBot's own null portal clears blocks)
@@ -107,6 +186,7 @@ messages:
     <dark_gray>   options: radius=40 portals=60 wave=3 duration=120 chance=0.25 interval=40 count=1 alive=60 max=400
     <white>/uss stop</white> <gray>[now]</gray> <dark_gray>- portals collapse (now = vanish instantly)
     <white>/uss totem</white> <gray>[player] [amount]</gray> <dark_gray>- Totem of Null: when it pops, every NULL dies
+    <white>/uss residents</white> <gray>on|off|status|sethome name</gray> <dark_gray>- player-like bots living on the server
     <white>/uss status</white> <dark_gray>| <white>/uss reload
   started: "Invasion at <white><x> <y> <z></white> (<world>): up to <white><portals></white> portals within <white><radius></white> blocks for <white><seconds>s</white>."
   stopped: "Collapsing <white><count></white> invasion(s)."
@@ -119,3 +199,7 @@ messages:
   unknown-world: "<red>No world called <white><world></white>."
   unknown-player: "<red>No online player called <white><player></white>."
   totem-given: "Gave <white><player></white> <white><count></white>x Totem of Null."
+  residents-on: "Residents on: they'll start logging on over the next few minutes."
+  residents-off: "Residents off: they're logging off."
+  residents-home: "Home for <white><player></white> set to where you're standing."
+  residents-status: "Residents <white><phase></white>: <white><count></white> online (aiming for <white><portals></white>): <gray><player>"

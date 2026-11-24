@@ -57,6 +57,29 @@ Settings in `totem:`:
 
 The totem knows which bots came out of the portals. That's anything new (mobs, or VexBot's fake players joining) that shows up within 16 blocks of a portal in the 10 seconds after it poured. You can change this with `spawn.capture-radius` / `capture-seconds`. Real players who have played before are never counted. `/uss status` shows how many are alive. For other VexBot bots, add VexBot's own kill command to `totem.kill-commands`.
 
+## Residents (player-like bots)
+
+`/uss residents on` brings VexBot bots to life as server regulars.
+
+- **Sessions:** a few log on and off through the day, with more during peak hours (`population`, `peak-population`, `peak-hours`). Each stays 20–90 minutes.
+- **Homes:** each bot gets its own home the first time it plays and keeps it in `residents.yml`, so regulars come back to the same base. `/uss residents sethome <name>` moves one.
+- **Activities** (weighted, configurable):
+  - `home`: hanging around their base
+  - `mine`: tunnelling down near home
+  - `visit`: walking to a hotspot you list
+  - `explore`: heading off somewhere
+  - `afk`
+- **Chat:** they greet when they log on, say "gtg"/"cya" when they leave, welcome real players ("wb Steve", "welcome Steve"), and drop an occasional line ("anyone got iron"). The bot types it itself, so your chat plugin formats it like a real player's. At most one idle line every 45 seconds across all bots.
+- **Server list:** bots are left out of the player count and hover list, so it shows real players only. Turn this off with `residents.hide-from-server-list`.
+
+The VexBot commands it runs are all in `residents.commands` and `activities`: spawn, team join, wander, goto, kill. Edit them to match your VexBot version.
+
+Tested with real test clients standing in for the bots:
+- Residents joined a few seconds apart at their own homes and greeted.
+- They went on mining trips and welcomed a new player.
+- They logged off with a goodbye, and regulars came back to the same home.
+- Over 12 server-list pings the list only ever showed the real player.
+
 ## Commands
 
 All commands use the `uss.admin` permission (default: op). They work from players, the console and command blocks, and coordinates can use `~`. Replies go only to whoever ran the command.
@@ -70,6 +93,8 @@ All commands use the `uss.admin` permission (default: op). They work from player
 | `/uss stop now` | Every portal vanishes instantly |
 | `/uss totem [player] [amount]` | Give Totems of Null |
 | `/uss status` | Running invasions: portals, bots poured, alive |
+| `/uss residents on\|off\|status` | Player-like bots living on the server (see Residents) |
+| `/uss residents sethome <name>` | Move a resident's home to where you stand |
 | `/uss reload` | Reload `config.yml` |
 
 You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 duration=180 chance=0.4`:
@@ -100,7 +125,7 @@ You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 dura
 ## Build
 
 ```bash
-./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.1.0.jar
+./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.2.0.jar
 ./gradlew runServer  # local Paper 1.21.11 test server
 ```
 
@@ -111,7 +136,7 @@ GitHub Actions (`.github/workflows/release.yml`) builds every push. Pushes to th
 If `/plugins` doesn't list UnstableSMP:
 1. Make sure the jar in `plugins/` is about **70 KB** and ends in `.jar`. A tiny file means the download saved a web page instead; upload it with your host's file manager.
 2. Remove any older UnstableSMP jar, because two jars with the same plugin name clash.
-3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.1.0`, or a red error line explaining why it couldn't.
+3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.2.0`, or a red error line explaining why it couldn't.
 
 ## Tested
 
