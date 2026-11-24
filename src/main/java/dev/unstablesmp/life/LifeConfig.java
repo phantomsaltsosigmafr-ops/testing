@@ -60,6 +60,30 @@ public final class LifeConfig {
     public final List<String> moveCommands;
     public final int huntRange;
 
+    // ---- growth, roads, market, nether, recovery, defence, wars, camp
+    public final int growMinutes;
+    public final boolean roads;
+    public final int roadMax;
+    public final boolean market;
+    public final boolean marketAtSpawn;
+    public final int marketX, marketY, marketZ;
+    public final int marketRadius;
+    public final int marketStalls;
+    public final List<String> stallColours;
+    public final List<String> trades;
+    public final boolean nether;
+    public final List<String> netherLoot;
+    public final boolean recover;
+    public final List<String> defendCommands;
+    public final boolean warsAuto;
+    public final Settings.IntRange warEveryMinutes;
+    public final Settings.IntRange warMinutes;
+    public final int warTnt;
+    public final List<String> warAttack;
+    public final boolean campAuto;
+    public final Settings.IntRange campDistance;
+    public final List<String> campLoot;
+
     // ---- server list
     public final boolean listBots;
     public final int hoverSize;
@@ -147,6 +171,46 @@ public final class LifeConfig {
         sleep = bs.getBoolean("sleep-at-night", true);
         huntRange = Math.max(8, c.getInt("hunt-range", 40));
 
+        growMinutes = Math.max(1, c.getInt("grow-minutes", 30));
+        ConfigurationSection rd = section(c, "roads");
+        roads = rd.getBoolean("enabled", true);
+        roadMax = Math.max(20, rd.getInt("max-distance", 300));
+        ConfigurationSection mk = section(c, "market");
+        market = mk.getBoolean("enabled", true);
+        String mc = mk.getString("center", "spawn").trim();
+        marketAtSpawn = mc.equalsIgnoreCase("spawn");
+        int[] mxyz = {0, 64, 0};
+        if (!marketAtSpawn) {
+            String[] parts = mc.split("[ ,]+");
+            try {
+                mxyz = new int[] {Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])};
+            } catch (RuntimeException ex) {
+                mxyz = new int[] {0, 64, 0};
+            }
+        }
+        marketX = mxyz[0];
+        marketY = mxyz[1];
+        marketZ = mxyz[2];
+        marketRadius = Math.max(4, mk.getInt("radius", 9));
+        marketStalls = Math.max(1, Math.min(16, mk.getInt("stalls", 6)));
+        stallColours = orDefault(mk.getStringList("awning-colours"), List.of("red", "yellow", "blue", "green", "orange", "purple"));
+        trades = orDefault(mk.getStringList("trades"), List.of("DIAMOND:1 -> EMERALD:8", "EMERALD:2 -> BREAD:8"));
+        ConfigurationSection nt = section(c, "nether");
+        nether = nt.getBoolean("enabled", true);
+        netherLoot = orDefault(nt.getStringList("loot"), List.of("BLAZE_ROD:0-3", "GOLD_INGOT:0-5", "QUARTZ:0-10"));
+        recover = c.getBoolean("recover-items", true);
+        ConfigurationSection wr = section(root, "wars");
+        warsAuto = wr.getBoolean("auto", false);
+        warEveryMinutes = Settings.IntRange.parse(wr.get("every-minutes"), new Settings.IntRange(45, 90));
+        warMinutes = Settings.IntRange.parse(wr.get("minutes"), new Settings.IntRange(3, 5));
+        warTnt = Math.max(0, Math.min(12, wr.getInt("tnt", 4)));
+        List<String> wa = commands(section(wr, "commands").getStringList("attack"));
+        warAttack = wa.isEmpty() ? List.of("vexbot attack {name} {target}") : wa;
+        ConfigurationSection cp = section(section(root, "bandits"), "camp");
+        campAuto = cp.getBoolean("auto", true);
+        campDistance = Settings.IntRange.parse(cp.get("distance"), new Settings.IntRange(150, 300));
+        campLoot = orDefault(cp.getStringList("loot"), List.of("IRON_INGOT:1-6", "BREAD:2-8", "GOLD_INGOT:0-4"));
+
         ConfigurationSection sl = section(root, "server-list");
         listBots = sl.getBoolean("show-bots", true);
         hoverSize = Math.max(0, Math.min(40, sl.getInt("hover-size", 12)));
@@ -158,6 +222,8 @@ public final class LifeConfig {
         leaveCommands = commands(cmd.getStringList("leave"));
         oreCommands = commands(cmd.getStringList("next-ore"));
         huntCommands = commands(cmd.getStringList("hunt"));
+        List<String> defend = commands(cmd.getStringList("defend"));
+        defendCommands = defend.isEmpty() ? List.of("vexbot attack {name} {target}") : defend;
         List<String> move = commands(cmd.getStringList("move"));
         moveCommands = move.isEmpty() ? List.of("vexbot goto {name} {x} {y} {z}") : move;
 

@@ -58,4 +58,37 @@ class BlueprintTest {
         assertEquals(1, n[0]);
         assertEquals(0, n[1]);
     }
+
+    private static void noDuplicates(List<Blueprint.Piece> plan, String what) {
+        Set<String> seen = new HashSet<>();
+        for (Blueprint.Piece p : plan) {
+            if (p.kind() == Blueprint.Kind.CLEAR || p.kind() == Blueprint.Kind.FILL || p.kind() == Blueprint.Kind.GROUND) continue;
+            assertTrue(seen.add(p.x() + "," + p.y() + "," + p.z()), what + " placed twice: " + p);
+        }
+        assertTrue(seen.size() > 5, what + " has blocks");
+    }
+
+    @Test
+    void extensionsStayInTheirBoxesAndOffTheHouse() {
+        for (int stage = 1; stage <= Blueprint.STAGES; stage++) {
+            int[] box = Blueprint.extensionBox(stage);
+            List<Blueprint.Piece> plan = Blueprint.extension(stage, "birch");
+            noDuplicates(plan, "stage " + stage);
+            for (Blueprint.Piece p : plan) {
+                assertTrue(p.x() >= box[0] && p.x() <= box[1] && p.z() >= box[2] && p.z() <= box[3], "stage " + stage + " outside its box: " + p);
+                boolean inHouse = p.x() >= 0 && p.x() <= 6 && p.z() >= 0 && p.z() <= 6;
+                assertTrue(!inHouse, "stage " + stage + " on the house: " + p);
+            }
+        }
+        assertTrue(Blueprint.extension(4, "oak").stream().anyMatch(p -> p.data().contains("nether_portal")), "stage 4 is a portal");
+    }
+
+    @Test
+    void stallAndCampBuild() {
+        noDuplicates(Blueprint.stall("oak", "red"), "stall");
+        List<Blueprint.Piece> camp = Blueprint.camp();
+        noDuplicates(camp, "camp");
+        assertEquals(1, camp.stream().filter(p -> p.kind() == Blueprint.Kind.CHEST).count());
+        assertEquals(1, camp.stream().filter(p -> p.kind() == Blueprint.Kind.SIGN).count());
+    }
 }

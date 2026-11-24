@@ -105,8 +105,39 @@ residents:
     signs: ["{name}'s base", "{name}|keep out", "no griefing|pls", "home sweet|home", "{name}'s|house", "do not|enter"]
     starter-items: ["COBBLESTONE:16-64", "OAK_LOG:4-16", "COAL:3-12", "BREAD:2-8", "WHEAT_SEEDS:4-16", "IRON_INGOT:1-6",
                     "TORCH:4-16", "STICK:4-12", "RAW_IRON:1-8", "APPLE:1-4"]
+  # Bases grow: once the house is done, every so often the crew adds the next part: an animal pen, an enchanting hut,
+  # a workshop with a furnace row and anvil, then a nether portal. Parts that don't fit on the land are skipped.
+  grow-minutes: 30           # time between additions (game time they're online)
+  roads:                     # residents lay dirt paths (plank bridges over water) from their door to nearby bases
+    enabled: true
+    max-distance: 300
+  market:                    # residents put up stalls around spawn and stand at them; right-click one to trade
+    enabled: true
+    center: spawn            # "spawn" or "x y z"
+    radius: 9                # how far from the centre the ring of stalls is
+    stalls: 6
+    awning-colours: [red, yellow, blue, green, orange, purple]
+    trades:                  # "COST:amount [+ COST2:amount] -> RESULT:amount"; each seller offers 3-5 of these
+      - "DIAMOND:1 -> EMERALD:8"
+      - "EMERALD:2 -> BREAD:8"
+      - "EMERALD:3 -> IRON_INGOT:4"
+      - "IRON_INGOT:6 -> EMERALD:1"
+      - "EMERALD:6 -> ENDER_PEARL:2"
+      - "WHEAT:20 -> EMERALD:1"
+      - "COAL:16 -> EMERALD:1"
+      - "EMERALD:1 -> COOKED_BEEF:6"
+      - "EMERALD:4 -> GOLDEN_CARROT:6"
+      - "EMERALD:10 + BOOK:1 -> EXPERIENCE_BOTTLE:16"
+      - "GOLD_INGOT:4 -> EMERALD:2"
+      - "EMERALD:5 -> OBSIDIAN:4"
+  nether:                    # once a base has its portal, the crew sometimes goes through and comes back with loot
+    enabled: true
+    loot: ["BLAZE_ROD:0-3", "GOLD_INGOT:0-5", "QUARTZ:0-12", "GLOWSTONE_DUST:0-8", "NETHER_WART:0-4", "MAGMA_CREAM:0-2"]
+  recover-items: true        # a resident that dies walks back to where it died and picks its stuff up
   # VexBot commands. Placeholders: {name} {x} {y} {z} (where they're going) {hx} {hy} {hz} (home) {radius} {world}
   commands:
+    defend:                  # NULL near their base: they fight. {target} = the NULL bot's name or UUID
+      - "vexbot attack {name} {target}"
     setup:                   # once, when residents switch on
       - "vexbot settings wander on"
       - "vexbot settings gotomining on"
@@ -172,6 +203,29 @@ residents:
       weight: 1
       minutes: 3-10
       commands: ["vexbot goto {name} stop", "vexbot wander {name} stop"]
+    road:                    # lays a path to the nearest base without one yet
+      weight: 2
+      minutes: 4-8
+      commands: ["vexbot wander {name} stop"]
+    market:                  # puts up their stall at spawn (if it isn't there) and stands at it trading
+      weight: 2
+      minutes: 5-12
+      commands: ["vexbot wander {name} stop"]
+    nether:                  # through the base's portal (once built); back later with nether loot
+      weight: 1
+      minutes: 4-9
+      commands: ["vexbot wander {name} stop"]
+
+# Crew wars: one crew raids another's base. They march over, light TNT against the walls, fight it out, and when it's
+# over the defenders rebuild their house block by block. /uss war <attacker> <defender> starts one; /uss war stop ends them.
+wars:
+  auto: false                # true = a war breaks out on its own every so often (when two crews with bases are on)
+  every-minutes: 45-90
+  minutes: 3-5               # how long the fighting lasts
+  tnt: 4                     # TNT lit against the defenders' house
+  commands:
+    attack:                  # {target} = the enemy's name
+      - "vexbot attack {name} {target}"
 
 # Bandits: small groups of broke players who log on near a real player, jump them, then run off and log off.
 # Automatic raids happen while residents are on; /uss bandits raid <player> [size] starts one now (great for filming).
@@ -213,6 +267,10 @@ bandits:
       - "vexbot goto {name} {x} {y} {z}"
     leave:
       - "vexbot kill {name}"
+  camp:                      # the bandits' hideout: a shack in the wild with a chest of stolen loot players can raid
+    auto: true               # find a plot on its own (it goes up only while no real player is within 48 blocks)
+    distance: 150-300        # from world spawn
+    loot: ["IRON_INGOT:1-6", "BREAD:2-8", "GOLD_INGOT:0-4", "EMERALD:0-5", "DIAMOND:0-1", "ARROW:4-16", "LEATHER:0-6"]
 
 # The server list: bots count in the player number and show in the hover list (Minecraft leaves fake players out of
 # the hover list by default).
@@ -275,7 +333,9 @@ messages:
     <white>/uss stop</white> <gray>[now]</gray> <dark_gray>- portals collapse (now = vanish instantly)
     <white>/uss totem</white> <gray>[player] [amount]</gray> <dark_gray>- Totem of Null: when it pops, every NULL dies
     <white>/uss residents</white> <gray>on|off|status|sethome name</gray> <dark_gray>- player-like bots living on the server
-    <white>/uss bandits</white> <gray>raid [player] [size]|on|off|stop</gray> <dark_gray>- broke bandits jump a player
+    <white>/uss bandits</white> <gray>raid [player] [size]|camp [here|new]|on|off|stop</gray> <dark_gray>- broke bandits jump a player
+    <white>/uss war</white> <gray>attacker defender | stop</gray> <dark_gray>- one crew raids another's base
+    <white>/uss start base</white> <gray>name|random</gray> <dark_gray>- invasion on a resident base (they defend it)
     <white>/uss gg</white> <dark_gray>- every bot spams gg
     <white>/uss status</white> <dark_gray>| <white>/uss reload
   started: "Invasion at <white><x> <y> <z></white> (<world>): up to <white><portals></white> portals within <white><radius></white> blocks for <white><seconds>s</white>."
@@ -298,4 +358,13 @@ messages:
   bandits-auto: "Automatic bandit raids <white><phase></white>."
   bandits-stopped: "Called off <white><count></white> raid(s); they're running off."
   bandits-status: "Bandit raids <white><phase></white>: <gray><names>"
+  camp-status: "Bandit camp at <white><x> <y> <z></white> (<phase>)."
+  camp-none: "<red>No bandit camp yet (no good plot found). Stand somewhere and use <white>/uss bandits camp here</white>."
+  no-base: "<red><white><player></white> has no base yet."
+  war-started: "War: <white><player></white>'s crew is raiding <white><target></white>'s base."
+  war-unknown: "<red>Both need to be resident names."
+  war-same: "<red>They're in the same crew."
+  war-no-base: "<red><white><target></white>'s crew hasn't built a base yet."
+  war-busy: "<red>One of those crews is already at war."
+  wars-stopped: "Ended <white><count></white> war(s); the defenders are rebuilding."
   gg-wave: "<white><count></white> bots are typing gg."

@@ -25,7 +25,7 @@ import org.bukkit.entity.Player;
  * {@code ~}). Replies go only to whoever ran it; players in the world just see the invasion. Never registers /vexbot.
  */
 public final class UssCommand implements TabExecutor {
-    private static final List<String> SUBS = List.of("start", "stop", "status", "totem", "residents", "bandits", "gg", "reload", "help");
+    private static final List<String> SUBS = List.of("start", "stop", "status", "totem", "residents", "bandits", "war", "gg", "reload", "help");
     private static final List<String> OPTIONS = List.of("radius=", "portals=", "wave=", "duration=", "chance=",
             "interval=", "count=", "alive=", "max=");
 
@@ -54,6 +54,7 @@ public final class UssCommand implements TabExecutor {
             case "totem" -> totem(sender, rest);
             case "residents", "life" -> residents(sender, rest);
             case "bandits", "bandit" -> bandits(sender, rest);
+            case "war", "wars" -> war(sender, rest);
             case "gg" -> msg(sender, "gg-wave", Text.ph("count", Integer.toString(
                     dev.unstablesmp.life.GgWave.run(plugin, plugin.life(), plugin::isBot))));
             case "reload" -> {
@@ -88,6 +89,12 @@ public final class UssCommand implements TabExecutor {
             } else if (looksLikeNumber(first)) {
                 where = coords(sender, pos);
                 if (where == null) return;
+            } else if (first.equals("base") && pos.size() > 1) {
+                where = plugin.residents().baseCentre(pos.get(1));
+                if (where == null) {
+                    msg(sender, "no-base", Text.ph("player", pos.get(1)));
+                    return;
+                }
             } else if (!first.equals("here")) {
                 Player target = Bukkit.getPlayerExact(pos.get(0));
                 if (target == null) {
@@ -258,12 +265,48 @@ public final class UssCommand implements TabExecutor {
                 msg(sender, "bandits-auto", Text.ph("phase", "off"));
             }
             case "stop" -> msg(sender, "bandits-stopped", Text.ph("count", Integer.toString(b.stopAll())));
+            case "camp" -> {
+                if (args.length > 1 && args[1].equalsIgnoreCase("here")) {
+                    if (!(sender instanceof Player p)) {
+                        msg(sender, "bad-option", Text.ph("option", "camp here (as a player)"));
+                        return;
+                    }
+                    b.setCamp(p.getLocation());
+                } else if (args.length > 1 && args[1].equalsIgnoreCase("new")) {
+                    if (!b.findCamp()) {
+                        msg(sender, "camp-none");
+                        return;
+                    }
+                }
+                Location c = b.campLocation();
+                if (c == null) msg(sender, "camp-none");
+                else msg(sender, "camp-status", Text.ph("x", Integer.toString(c.getBlockX())), Text.ph("y", Integer.toString(c.getBlockY())),
+                        Text.ph("z", Integer.toString(c.getBlockZ())), Text.ph("phase", b.campBuilt() ? "built" : "going up"));
+            }
             default -> {
                 List<String> raids = b.status();
                 msg(sender, "bandits-status", Text.ph("phase", b.auto() ? "on" : "off"),
                         Text.ph("names", raids.isEmpty() ? "no raids right now" : String.join(" | ", raids)));
             }
         }
+    }
+
+    // ------------------------------------------------------------------ wars
+
+    /** {@code /uss war <attacker> <defender>} or {@code /uss war stop}. */
+    private void war(CommandSender sender, String[] args) {
+        var life = plugin.residents();
+        if (args.length >= 1 && args[0].equalsIgnoreCase("stop")) {
+            msg(sender, "wars-stopped", Text.ph("count", Integer.toString(life.stopWars())));
+            return;
+        }
+        if (args.length < 2) {
+            msg(sender, "bad-option", Text.ph("option", "war <attacker> <defender> | war stop"));
+            return;
+        }
+        String err = life.war(args[0], args[1]);
+        if (err == null) msg(sender, "war-started", Text.ph("player", args[0]), Text.ph("target", args[1]));
+        else msg(sender, "war-" + err, Text.ph("player", args[0]), Text.ph("target", args[1]));
     }
 
     // ------------------------------------------------------------------ helpers
@@ -331,13 +374,24 @@ public final class UssCommand implements TabExecutor {
             }
             List<String> opts = new ArrayList<>(OPTIONS);
             if (args.length == 2) {
-                opts.addAll(List.of("here", "at"));
+                opts.addAll(List.of("here", "at", "base"));
                 for (Player p : Bukkit.getOnlinePlayers()) opts.add(p.getName());
             }
             return filter(opts, last);
         }
+        if (sub.equals("start") && args.length == 3 && args[1].equalsIgnoreCase("base")) {
+            List<String> names = new ArrayList<>(plugin.residents().names());
+            names.add("random");
+            return filter(names, last);
+        }
+        if (sub.equals("war") && args.length <= 3) {
+            List<String> names = new ArrayList<>(plugin.residents().names());
+            if (args.length == 2) names.add("stop");
+            return filter(names, last);
+        }
         if (sub.equals("stop") && args.length == 2) return filter(List.of("now"), last);
-        if ((sub.equals("bandits") || sub.equals("bandit")) && args.length == 2) return filter(List.of("raid", "on", "off", "stop", "status"), last);
+        if ((sub.equals("bandits") || sub.equals("bandit")) && args.length == 2) return filter(List.of("raid", "camp", "on", "off", "stop", "status"), last);
+        if ((sub.equals("bandits") || sub.equals("bandit")) && args.length == 3 && args[1].equalsIgnoreCase("camp")) return filter(List.of("here", "new"), last);
         if ((sub.equals("bandits") || sub.equals("bandit")) && args.length == 3 && args[1].equalsIgnoreCase("raid")) {
             List<String> names = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) if (!plugin.isBot(p)) names.add(p.getName());

@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
  */
 public final class Blueprint {
 
-    public enum Kind { CLEAR, FILL, GROUND, BLOCK, CONNECT, DOOR, BED, CHEST, SIGN, CROP }
+    public enum Kind { CLEAR, FILL, GROUND, BLOCK, CONNECT, DOOR, BED, CHEST, SIGN, CROP, ANIMAL }
 
     /** One step: a block state at a local position. */
     public record Piece(int x, int y, int z, String data, Kind kind) {
@@ -148,6 +148,156 @@ public final class Blueprint {
             for (int z = 1; z <= 5; z++) if (isCropBed(x, z)) p.add(new Piece(x, 1, z, "minecraft:" + crop, Kind.CROP));
         }
         for (int[] t : new int[][] {{8, 0}, {14, 0}, {8, 6}, {14, 6}}) p.add(new Piece(t[0], 2, t[1], "minecraft:torch", Kind.BLOCK));
+        return p;
+    }
+
+    // ------------------------------------------------------------------ bases that grow
+
+    /** How many extensions a base grows after the house: pen, enchanting hut, workshop, nether portal. */
+    public static final int STAGES = 4;
+
+    /** Clear box of extension {@code stage} (local): minX, maxX, minZ, maxZ. */
+    public static int[] extensionBox(int stage) {
+        return switch (stage) {
+            case 1 -> new int[] {-1, 7, 8, 15};
+            case 2 -> new int[] {8, 15, 8, 16};
+            case 3 -> new int[] {-10, -2, -1, 7};
+            default -> new int[] {-10, -2, 8, 15};
+        };
+    }
+
+    /** Where to stand to use the nether portal (stage 4), local. */
+    public static int[] portalFront() {
+        return new int[] {-6, 1, 10};
+    }
+
+    /** Extension {@code stage} of a base: 1 animal pen, 2 enchanting hut, 3 workshop, 4 nether portal. */
+    public static List<Piece> extension(int stage, String wood) {
+        String w = "minecraft:" + wood;
+        List<Piece> p = new ArrayList<>();
+        int[] box = extensionBox(stage);
+        for (int y = TOP; y >= 1; y--) {
+            for (int x = box[0]; x <= box[1]; x++) for (int z = box[2]; z <= box[3]; z++) p.add(new Piece(x, y, z, "minecraft:air", Kind.CLEAR));
+        }
+        for (int y = -5; y <= -1; y++) {
+            for (int x = box[0]; x <= box[1]; x++) for (int z = box[2]; z <= box[3]; z++) p.add(new Piece(x, y, z, "minecraft:dirt", Kind.FILL));
+        }
+        for (int x = box[0]; x <= box[1]; x++) for (int z = box[2]; z <= box[3]; z++) p.add(new Piece(x, 0, z, "minecraft:grass_block", Kind.GROUND));
+        switch (stage) {
+            case 1 -> { // animal pen: fence ring, gate facing the house, a trough, a few animals
+                for (int x = 0; x <= 6; x++) {
+                    for (int z = 9; z <= 14; z++) {
+                        if (!(x == 0 || x == 6 || z == 9 || z == 14)) continue;
+                        if (x == 3 && z == 9) p.add(new Piece(x, 1, z, w + "_fence_gate[facing=north,open=false,in_wall=false]", Kind.BLOCK));
+                        else p.add(new Piece(x, 1, z, w + "_fence", Kind.CONNECT));
+                    }
+                }
+                p.add(new Piece(5, 0, 13, "minecraft:water", Kind.BLOCK));
+                p.add(new Piece(1, 1, 13, "minecraft:hay_block", Kind.BLOCK));
+                p.add(new Piece(0, 2, 9, "minecraft:torch", Kind.BLOCK));
+                p.add(new Piece(6, 2, 9, "minecraft:torch", Kind.BLOCK));
+                p.add(new Piece(2, 1, 11, "cow", Kind.ANIMAL));
+                p.add(new Piece(4, 1, 12, "cow", Kind.ANIMAL));
+                p.add(new Piece(3, 1, 11, "sheep", Kind.ANIMAL));
+                p.add(new Piece(2, 1, 13, "chicken", Kind.ANIMAL));
+            }
+            case 2 -> { // enchanting hut: cobble floor, plank walls, door toward the house, table ringed by bookshelves
+                for (int x = 8; x <= 14; x++) for (int z = 9; z <= 15; z++) p.add(new Piece(x, 0, z, "minecraft:cobblestone", Kind.BLOCK));
+                for (int y = 1; y <= 3; y++) {
+                    for (int x = 8; x <= 14; x++) {
+                        for (int z = 9; z <= 15; z++) {
+                            if (!(x == 8 || x == 14 || z == 9 || z == 15)) continue;
+                            if (x == 11 && z == 9 && y <= 2) continue;
+                            boolean corner = (x == 8 || x == 14) && (z == 9 || z == 15);
+                            boolean window = y == 2 && (x == 8 || x == 14) && z == 12;
+                            p.add(new Piece(x, y, z, corner ? w + "_log[axis=y]" : window ? "minecraft:glass_pane" : w + "_planks", window ? Kind.CONNECT : Kind.BLOCK));
+                        }
+                    }
+                }
+                for (int x = 8; x <= 15; x++) for (int z = 8; z <= 16; z++) p.add(new Piece(x, 4, z, w + "_slab[type=bottom]", Kind.BLOCK));
+                p.add(new Piece(11, 1, 9, w + "_door[facing=south,half=lower,hinge=left,open=false]", Kind.DOOR));
+                p.add(new Piece(11, 2, 9, w + "_door[facing=south,half=upper,hinge=left,open=false]", Kind.DOOR));
+                p.add(new Piece(11, 1, 12, "minecraft:enchanting_table", Kind.BLOCK));
+                for (int y = 1; y <= 2; y++) {
+                    for (int z = 11; z <= 13; z++) {
+                        p.add(new Piece(9, y, z, "minecraft:bookshelf", Kind.BLOCK));
+                        p.add(new Piece(13, y, z, "minecraft:bookshelf", Kind.BLOCK));
+                    }
+                    for (int x = 10; x <= 12; x++) p.add(new Piece(x, y, 14, "minecraft:bookshelf", Kind.BLOCK));
+                }
+                p.add(new Piece(10, 3, 10, "minecraft:wall_torch[facing=south]", Kind.BLOCK));
+                p.add(new Piece(12, 3, 10, "minecraft:wall_torch[facing=south]", Kind.BLOCK));
+            }
+            case 3 -> { // workshop: open shed with log posts and a slab roof
+                for (int x = -8; x <= -2; x++) for (int z = 0; z <= 6; z++) p.add(new Piece(x, 0, z, "minecraft:cobblestone", Kind.BLOCK));
+                for (int[] c : new int[][] {{-8, 0}, {-2, 0}, {-8, 6}, {-2, 6}}) {
+                    for (int y = 1; y <= 3; y++) p.add(new Piece(c[0], y, c[1], w + "_log[axis=y]", Kind.BLOCK));
+                }
+                for (int x = -9; x <= -2; x++) for (int z = -1; z <= 7; z++) p.add(new Piece(x, 4, z, w + "_slab[type=bottom]", Kind.BLOCK));
+                p.add(new Piece(-7, 1, 5, "minecraft:anvil[facing=east]", Kind.BLOCK));
+                p.add(new Piece(-6, 1, 5, "minecraft:smithing_table", Kind.BLOCK));
+                p.add(new Piece(-5, 1, 5, "minecraft:blast_furnace[facing=north]", Kind.BLOCK));
+                p.add(new Piece(-4, 1, 5, "minecraft:grindstone[face=floor,facing=north]", Kind.BLOCK));
+                p.add(new Piece(-3, 1, 5, "minecraft:barrel[facing=up]", Kind.BLOCK));
+                p.add(new Piece(-7, 1, 1, "minecraft:stonecutter[facing=north]", Kind.BLOCK));
+                p.add(new Piece(-5, 2, 3, "minecraft:lantern[hanging=false]", Kind.BLOCK));
+            }
+            default -> { // nether portal: obsidian frame, lit
+                for (int x = -7; x <= -4; x++) {
+                    for (int y = 1; y <= 5; y++) {
+                        boolean frame = x == -7 || x == -4 || y == 1 || y == 5;
+                        if (frame) p.add(new Piece(x, y, 12, "minecraft:obsidian", Kind.BLOCK));
+                    }
+                }
+                for (int x = -6; x <= -5; x++) for (int y = 2; y <= 4; y++) p.add(new Piece(x, y, 12, "minecraft:nether_portal[axis=x]", Kind.BLOCK));
+            }
+        }
+        return p;
+    }
+
+    // ------------------------------------------------------------------ market stall and bandit camp
+
+    /** A market stall facing local north: a barrel counter, fence posts, a wool awning. The seller stands at (1,1,1). */
+    public static List<Piece> stall(String wood, String colour) {
+        String w = "minecraft:" + wood;
+        List<Piece> p = new ArrayList<>();
+        for (int y = 4; y >= 1; y--) for (int x = 0; x <= 2; x++) for (int z = 0; z <= 2; z++) p.add(new Piece(x, y, z, "minecraft:air", Kind.CLEAR));
+        for (int y = -2; y <= -1; y++) for (int x = 0; x <= 2; x++) for (int z = 0; z <= 2; z++) p.add(new Piece(x, y, z, "minecraft:dirt", Kind.FILL));
+        for (int x = 0; x <= 2; x++) for (int z = 0; z <= 2; z++) p.add(new Piece(x, 0, z, "minecraft:grass_block", Kind.GROUND));
+        for (int x = 0; x <= 2; x++) p.add(new Piece(x, 1, 0, "minecraft:barrel[facing=north]", Kind.BLOCK));
+        p.add(new Piece(0, 1, 2, w + "_fence", Kind.CONNECT));
+        p.add(new Piece(2, 1, 2, w + "_fence", Kind.CONNECT));
+        for (int[] c : new int[][] {{0, 0}, {2, 0}, {0, 2}, {2, 2}}) p.add(new Piece(c[0], 2, c[1], w + "_fence", Kind.CONNECT));
+        for (int x = 0; x <= 2; x++) for (int z = 0; z <= 2; z++) p.add(new Piece(x, 3, z, "minecraft:" + colour + "_wool", Kind.BLOCK));
+        p.add(new Piece(1, 2, 0, "minecraft:lantern[hanging=false]", Kind.BLOCK));
+        return p;
+    }
+
+    /** A bandit hideout facing local north: a rough shack, a campfire, a loot chest, barrels and a sign. */
+    public static List<Piece> camp() {
+        List<Piece> p = new ArrayList<>();
+        for (int y = 6; y >= 1; y--) for (int x = -1; x <= 7; x++) for (int z = -3; z <= 5; z++) p.add(new Piece(x, y, z, "minecraft:air", Kind.CLEAR));
+        for (int x = -1; x <= 7; x++) for (int z = -3; z <= 5; z++) p.add(new Piece(x, 0, z, "minecraft:coarse_dirt", Kind.BLOCK));
+        for (int y = 1; y <= 3; y++) {
+            for (int x = 0; x <= 6; x++) {
+                for (int z = 0; z <= 4; z++) {
+                    boolean back = z == 4, side = x == 0 || x == 6;
+                    if (!(back || side)) continue;
+                    boolean corner = side && (z == 0 || z == 4);
+                    p.add(new Piece(x, y, z, corner ? "minecraft:spruce_log[axis=y]" : (x + y + z) % 3 == 0 ? "minecraft:cobblestone" : "minecraft:spruce_planks", Kind.BLOCK));
+                }
+            }
+        }
+        for (int x = -1; x <= 7; x++) for (int z = -1; z <= 5; z++) p.add(new Piece(x, 4, z, "minecraft:spruce_slab[type=bottom]", Kind.BLOCK));
+        p.add(new Piece(3, 1, 3, "minecraft:chest[facing=north,type=single]", Kind.CHEST));
+        p.add(new Piece(1, 1, 3, "minecraft:barrel[facing=up]", Kind.BLOCK));
+        p.add(new Piece(5, 1, 3, "minecraft:barrel[facing=up]", Kind.BLOCK));
+        p.add(new Piece(1, 1, 1, "minecraft:crafting_table", Kind.BLOCK));
+        p.add(new Piece(5, 1, 1, "minecraft:white_bed[facing=south,part=foot]", Kind.BED));
+        p.add(new Piece(5, 1, 2, "minecraft:white_bed[facing=south,part=head]", Kind.BED));
+        p.add(new Piece(3, 1, -2, "minecraft:campfire[lit=true,facing=north]", Kind.BLOCK));
+        p.add(new Piece(0, 2, -1, "minecraft:spruce_wall_sign[facing=north]", Kind.SIGN));
+        p.add(new Piece(6, 2, -1, "minecraft:lantern[hanging=false]", Kind.BLOCK));
         return p;
     }
 

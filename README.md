@@ -81,6 +81,31 @@ The totem knows which bots came out of the portals. That's anything new (mobs, o
   - `visit`, `explore`, `afk`, and `sleep` at night
 - **Server list:** bots count in the player number and show in the hover list. Minecraft normally leaves fake players out of the hover list; the `server-list` section fixes that.
 
+## Living server (4.5.0)
+
+- **Bases grow:** once the house is done, every `grow-minutes` (default 30) the crew builds the next part:
+  1. an animal pen with animals
+  2. an enchanting hut with bookshelves
+  3. a workshop (anvil, blast furnace, smithing table…)
+  4. a lit nether portal
+
+  Parts that don't fit the land are skipped.
+- **Roads:** residents lay dirt paths from their door to nearby bases, with plank bridges over water.
+- **Market at spawn:** residents put up stalls (barrel counter, wool awning) in a ring around spawn and stand at them. Right-click one to trade; the trades are in `residents.market.trades`.
+- **Nether trips:** once a base has its portal, the crew walks in and comes back later with blaze rods, gold, quartz and the like. **End trips aren't included**, because the End needs a stronghold.
+- **Death and recovery:** a resident that dies respawns at its bed, walks back to where it died and picks its stuff up.
+- **NULL vs residents:** when an invasion lands near a base, the residents there fight the NULL. `/uss start base <name|random>` drops an invasion right on a base.
+- **Crew wars:** `/uss war <attacker> <defender>`:
+  1. the attacking crew marches to the defenders' base
+  2. they light TNT against the walls
+  3. both crews fight
+  4. when it's over, the defenders rebuild their house block by block
+
+  `/uss war stop` ends wars. Set `wars.auto: true` for random wars.
+- **Bandit camp:** the bandits get a hideout out in the wild: a shack with a campfire, beds and a chest of stolen loot that players can raid. The chest refills after raids, and bandits run back to the camp.
+  - It only goes up while no real player is within 48 blocks.
+  - `/uss bandits camp [here|new]` shows the camp, moves it to where you stand, or picks a new spot.
+
 ## Bandits
 
 Small groups of broke players (1–4 at a time) who jump a real player:
@@ -111,6 +136,9 @@ All commands use the `uss.admin` permission (default: op). They work from player
 | `/uss residents on\|off\|status` | Player-like bots living on the server (see Residents) |
 | `/uss residents sethome <name>` | Move a resident's home to where you stand |
 | `/uss bandits raid <player> [size]` | Bandits jump that player now; `on`/`off` for automatic raids, `stop` calls raids off |
+| `/uss war <attacker> <defender>` / `/uss war stop` | Crew war: one crew raids another's base |
+| `/uss bandits camp [here\|new]` | Show, move or re-pick the bandit camp |
+| `/uss start base <name\|random>` | Invasion on a resident's base (they defend it) |
 | `/uss gg` | Every bot spams gg |
 | `/uss reload` | Reload `config.yml` |
 
@@ -142,7 +170,7 @@ You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 dura
 ## Build
 
 ```bash
-./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.4.0.jar
+./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.5.0.jar
 ./gradlew runServer  # local Paper 1.21.11 test server
 ```
 
@@ -153,7 +181,7 @@ GitHub Actions (`.github/workflows/release.yml`) builds every push. Pushes to th
 If `/plugins` doesn't list UnstableSMP:
 1. Make sure the jar in `plugins/` is about **70 KB** and ends in `.jar`. A tiny file means the download saved a web page instead; upload it with your host's file manager.
 2. Remove any older UnstableSMP jar, because two jars with the same plugin name clash.
-3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.4.0`, or a red error line explaining why it couldn't.
+3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.5.0`, or a red error line explaining why it couldn't.
 
 ## Tested
 

@@ -70,6 +70,21 @@ public final class LifeDirector implements Listener {
         int progress;
         boolean built;
         int bedIndex;
+        /** 0 = the house; 1..STAGES = the next extension to build; above = fully grown. */
+        int stage;
+        boolean repairing;
+        int growAt;
+        final Set<String> roadsTo = new HashSet<>();
+
+        // ---- trips, deaths, markets, wars
+        final List<int[]> road = new ArrayList<>();
+        String roadTarget;
+        Location netherBack;
+        boolean inNether;
+        Location death;
+        int deathAt = -100000;
+        int stall = -1;
+        UUID warTarget;
 
         // ---- chores
         final List<int[]> logs = new ArrayList<>();
@@ -90,7 +105,27 @@ public final class LifeDirector implements Listener {
     private record Pending(int at, Runnable action) {
     }
 
-    private static final Set<String> HAND_CHORES = Set.of("build", "farm", "woodcut");
+    private static final Set<String> HAND_CHORES = Set.of("build", "farm", "woodcut", "road", "market");
+    /** Things that take over whatever a resident was doing (not picked at random). */
+    private static final Set<String> OVERRIDES = Set.of("defend", "recover", "raid", "war");
+
+    /** A feud between two crews (or solo players): march, TNT, fight, then the losers rebuild. */
+    private static final class War {
+        final Resident attackers, defenders;
+        int phase; // 0 march, 1 fight
+        int bombAt, endAt;
+
+        War(Resident a, Resident d) {
+            attackers = a;
+            defenders = d;
+        }
+    }
+
+    private final List<War> wars = new ArrayList<>();
+    private int nextAutoWar = 20 * 60 * 30;
+    private java.util.function.Supplier<List<Entity>> nullBots = List::of;
+    private java.util.function.Supplier<List<Location>> invasionCentres = List::of;
+    private final Map<Integer, Homestead.Job> stalls = new HashMap<>();
 
     private final Logger log;
     private final File file;
@@ -133,6 +168,13 @@ public final class LifeDirector implements Listener {
 
     public boolean isResident(Player p) {
         return connected.contains(LifeUtil.key(p.getName()));
+    }
+
+    /** Every resident's name (online or not). */
+    public List<String> names() {
+        List<String> out = new ArrayList<>();
+        for (Resident r : residents.values()) out.add(r.name);
+        return out;
     }
 
     public List<String> onlineNames() {
@@ -235,6 +277,7 @@ public final class LifeDirector implements Listener {
                 log.warning("Residents: " + r.name + " " + r.activity + ": " + ex);
             }
         }
+        tickSociety();
         if (now % 1200 == 0) save();
     }
 
@@ -380,6 +423,7 @@ public final class LifeDirector implements Listener {
             Player p = Bukkit.getPlayerExact(r.name);
             if (p != null) {
                 if (p.isSleeping()) p.wakeup(false);
+                if (r.inNether) returnFromNether(r, p);
                 restoreHand(r, p);
             }
             LifeUtil.run(cfg.leaveCommands, values(r, r.hx, r.hy, r.hz), log);
@@ -408,13 +452,17 @@ public final class LifeDirector implements Listener {
         LifeConfig.Activity sleep = cfg.activities.get("sleep");
         if (cfg.bases && cfg.sleep && f.built && sleep != null && w != null && night(w) && rnd.nextDouble() < 0.8) return sleep;
         LifeConfig.Activity build = cfg.activities.get("build");
-        if (cfg.bases && f.base && !f.built && build != null && rnd.nextDouble() < 0.65) return build;
+        boolean needsBuild = needsBuild(f);
+        if (needsBuild && build != null && rnd.nextDouble() < 0.65) return build;
         List<LifeConfig.Activity> list = new ArrayList<>();
         for (LifeConfig.Activity a : cfg.activities.values()) {
             if (a.id().equals(r.activity) && cfg.activities.size() > 1) continue;
-            if (a.id().equals("sleep") || a.weight() <= 0) continue;
-            if (a.id().equals("build") && !(cfg.bases && f.base && !f.built)) continue;
+            if (a.id().equals("sleep") || OVERRIDES.contains(a.id()) || a.weight() <= 0) continue;
+            if (a.id().equals("build") && !needsBuild) continue;
             if (a.id().equals("farm") && !(cfg.bases && f.built)) continue;
+            if (a.id().equals("road") && !(cfg.roads && f.built && roadPartner(f) != null)) continue;
+            if (a.id().equals("market") && !cfg.market) continue;
+            if (a.id().equals("nether") && !(cfg.nether && f.built && f.stage > Blueprint.STAGES && netherWorld() != null && home.portalLit(f))) continue;
             list.add(a);
         }
         if (list.isEmpty()) return null;
@@ -426,6 +474,17 @@ public final class LifeDirector implements Listener {
             if (roll < 0) return a;
         }
         return list.get(0);
+    }
+
+    /** The house isn't done, needs fixing after a raid, or the next extension is due (skipping any that won't fit). */
+    private boolean needsBuild(Resident f) {
+        if (!cfg.bases || !f.base) return false;
+        if (!f.built || f.repairing) return true;
+        while (f.stage >= 1 && f.stage <= Blueprint.STAGES && now >= f.growAt) {
+            if (f.progress > 0 || home.extensionOk(f, f.stage)) return true; // started = keep going (its own blocks would fail the check)
+            f.stage++; // that spot is taken or too rough: skip this extension
+        }
+        return false;
     }
 
     static boolean night(World w) {
@@ -449,6 +508,7 @@ public final class LifeDirector implements Listener {
                 r.savedHand = choreItem(cur.getType()) ? new ItemStack(Material.AIR) : cur.clone();
             }
         }
+        if (r.inNether && !a.id().equals("nether") && p != null) returnFromNether(r, p);
         r.activity = a.id();
         r.activityEnd = until;
         r.ores.clear();
@@ -491,6 +551,19 @@ public final class LifeDirector implements Listener {
                 int[] base = leader != null ? targetFor(leader, a.id()) : targetFor(r, a.id());
                 t = leader != null ? new int[] {base[0] + rnd.nextInt(-3, 4), base[1], base[2] + rnd.nextInt(-3, 4)} : base;
             }
+            case "road" -> {
+                Resident other = roadPartner(f);
+                r.road.clear();
+                r.roadTarget = other == null ? null : LifeUtil.key(other.name);
+                if (other != null) r.road.addAll(roadPath(f, other));
+                t = r.road.isEmpty() ? new int[] {r.hx, r.hy, r.hz} : new int[] {r.road.get(0)[0], r.hy, r.road.get(0)[1]};
+            }
+            case "market" -> {
+                r.stall = stallFor(r);
+                int[] spot = stallSpot(r.stall);
+                t = spot == null ? new int[] {r.hx, r.hy, r.hz} : spot;
+            }
+            case "nether" -> t = Homestead.world(f, Blueprint.portalFront()[0], 1, Blueprint.portalFront()[2]);
             default -> t = new int[] {r.hx, r.hy, r.hz};
         }
         LifeUtil.run(a.commands(), values(r, t[0], t[1], t[2]), log);
@@ -518,6 +591,17 @@ public final class LifeDirector implements Listener {
                 }
                 r.stuckSince = 0;
                 if (s == Homestead.Step.DONE) {
+                    if (f.repairing) {
+                        f.repairing = false;
+                    } else if (f.stage == 0) {
+                        f.stage = 1; // the house is up: it grows from here
+                    } else if (f.stage <= Blueprint.STAGES) {
+                        f.stage++;
+                    }
+                    f.growAt = now + 20 * 60 * cfg.growMinutes;
+                    f.progress = 0;
+                    home.forget(f);
+                    save();
                     for (Resident m : residents.values()) {
                         Player mp = m.online ? Bukkit.getPlayerExact(m.name) : null;
                         if (mp != null && founder(m) == f) home.setSpawn(mp, f, m.bedIndex);
@@ -603,6 +687,12 @@ public final class LifeDirector implements Listener {
                     p.sleep(bed, true);
                 }
             }
+            case "road" -> roadChore(r, f, p);
+            case "market" -> marketChore(r, p);
+            case "nether" -> netherChore(r, f, p);
+            case "recover" -> recoverChore(r, p);
+            case "defend", "war" -> fightChore(r, p);
+            case "raid" -> { } // marching: the war director does the rest
             case "home" -> {
                 if (!cfg.bases || now - r.storedAt < 20 * 60 || !Homestead.hasLoot(p)) return;
                 Block chest = home.chest(f);
@@ -669,6 +759,556 @@ public final class LifeDirector implements Listener {
         return new int[] {r.hx, r.hy, r.hz};
     }
 
+    // ------------------------------------------------------------------ overrides (defend, recover, raid, war)
+
+    /** Takes over whatever the resident is doing until {@code until}. */
+    private void force(Resident r, String id, int until, int[] target, List<String> commands) {
+        Player p = Bukkit.getPlayerExact(r.name);
+        if (p != null) {
+            if (p.isSleeping()) p.wakeup(false);
+            if (r.inNether) returnFromNether(r, p);
+            restoreHand(r, p);
+        }
+        r.activity = id;
+        r.activityEnd = until;
+        r.nextChoreAt = now + 20;
+        r.gotoAt = now + 200;
+        r.stuckSince = 0;
+        if (target != null) LifeUtil.run(commands, values(r, target[0], target[1], target[2]), log);
+    }
+
+    /** Fights whoever is in front of them: NULL (defend) or the other crew (war). */
+    private void fightChore(Resident r, Player p) {
+        if (now < r.nextChoreAt) return;
+        r.nextChoreAt = now + 20 * 6;
+        Entity target = null;
+        if (r.activity.equals("war")) {
+            target = r.warTarget == null ? null : Bukkit.getEntity(r.warTarget);
+        } else {
+            double best = 64 * 64;
+            for (Entity e : nullBots.get()) {
+                if (e.getWorld() != p.getWorld() || !e.isValid() || e.isDead()) continue;
+                double d = e.getLocation().distanceSquared(p.getLocation());
+                if (d < best) {
+                    best = d;
+                    target = e;
+                }
+            }
+            if (target == null && invasionNear(r) == null) {
+                r.activityEnd = now;
+                return;
+            }
+        }
+        if (target == null) return;
+        Map<String, String> v = values(r, target.getLocation().getBlockX(), target.getLocation().getBlockY(), target.getLocation().getBlockZ());
+        v.put("target", target instanceof Player tp ? tp.getName() : target.getUniqueId().toString());
+        LifeUtil.run(r.activity.equals("war") ? cfg.warAttack : cfg.defendCommands, v, log);
+    }
+
+    /** The NULL invasion nearest a resident's home, if one is close enough to threaten it. */
+    private Location invasionNear(Resident r) {
+        Resident f = founder(r);
+        for (Location c : invasionCentres.get()) {
+            if (c.getWorld() == null || r.world == null || !c.getWorld().getName().equals(r.world)) continue;
+            double dx = c.getX() - f.hx, dz = c.getZ() - f.hz;
+            if (dx * dx + dz * dz < 90 * 90) return c;
+        }
+        return null;
+    }
+
+    /** Lets residents see NULL invasions (for defending their bases). */
+    public void nullSource(java.util.function.Supplier<List<Entity>> bots, java.util.function.Supplier<List<Location>> centres) {
+        this.nullBots = bots;
+        this.invasionCentres = centres;
+    }
+
+    /** Where a resident's base is (for /uss null base): the middle of the house, or null. "random" = any built base. */
+    public Location baseCentre(String name) {
+        List<Resident> pool = new ArrayList<>();
+        if (name.equalsIgnoreCase("random")) {
+            for (Resident r : residents.values()) if (r.base && r.built) pool.add(r);
+        } else {
+            Resident r = residents.get(LifeUtil.key(name));
+            if (r != null) pool.add(founder(r));
+        }
+        pool.removeIf(r -> !r.base || Bukkit.getWorld(r.world) == null);
+        if (pool.isEmpty()) return null;
+        Resident f = pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
+        int[] c = Homestead.world(f, Blueprint.homeSpot()[0], 1, Blueprint.homeSpot()[2]);
+        return new Location(Bukkit.getWorld(f.world), c[0] + 0.5, c[1], c[2] + 0.5);
+    }
+
+    // ------------------------------------------------------------------ death and recovery
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent e) {
+        Resident r = residents.get(LifeUtil.key(e.getPlayer().getName()));
+        if (r == null || !r.online || !cfg.recover || e.getKeepInventory() || e.getDrops().isEmpty()) return;
+        r.death = e.getPlayer().getLocation().clone();
+        r.deathAt = now;
+        r.inNether = false;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onRespawn(org.bukkit.event.player.PlayerRespawnEvent e) {
+        Resident r = residents.get(LifeUtil.key(e.getPlayer().getName()));
+        if (r == null || !r.online || r.death == null || now - r.deathAt > 20 * 60 * 4) return;
+        later(60 + ThreadLocalRandom.current().nextInt(100), () -> {
+            if (!r.online || r.death == null) return;
+            Location d = r.death;
+            force(r, "recover", now + 20 * 60 * 4, new int[] {d.getBlockX(), d.getBlockY(), d.getBlockZ()}, cfg.moveCommands);
+        });
+    }
+
+    /** Back at the death spot: picks their stuff back up. */
+    private void recoverChore(Resident r, Player p) {
+        if (now < r.nextChoreAt) return;
+        r.nextChoreAt = now + 20;
+        Location d = r.death;
+        if (d == null || d.getWorld() != p.getWorld()) {
+            r.activityEnd = now;
+            return;
+        }
+        if (p.getLocation().distanceSquared(d) > 4 * 4 && !stuck(r)) {
+            if (r.stuckSince == 0) r.stuckSince = now;
+            if (now >= r.gotoAt) {
+                LifeUtil.run(cfg.moveCommands, values(r, d.getBlockX(), d.getBlockY(), d.getBlockZ()), log);
+                r.gotoAt = now + 200;
+            }
+            return;
+        }
+        int got = 0;
+        for (Entity e : d.getWorld().getNearbyEntities(d, 5, 4, 5)) {
+            if (e instanceof org.bukkit.entity.Item item && item.isValid()) {
+                Homestead.give(p, List.of(item.getItemStack()));
+                item.remove();
+                got++;
+            }
+        }
+        if (got > 0) {
+            p.swingMainHand();
+            p.getWorld().playSound(p.getLocation(), org.bukkit.Sound.ENTITY_ITEM_PICKUP, 0.6f, 1f);
+        }
+        r.death = null;
+        r.activityEnd = now + 40;
+    }
+
+    // ------------------------------------------------------------------ roads
+
+    /** The nearest other base without a road to this one yet (within roads.max-distance). */
+    private Resident roadPartner(Resident f) {
+        Resident best = null;
+        double bestD = (double) cfg.roadMax * cfg.roadMax;
+        for (Resident o : residents.values()) {
+            if (o == f || !o.base || !o.built || o.world == null || !o.world.equals(f.world) || founder(o) != o) continue;
+            if (f.roadsTo.contains(LifeUtil.key(o.name)) || o.roadsTo.contains(LifeUtil.key(f.name))) continue;
+            double dx = o.bx - f.bx, dz = o.bz - f.bz, d = dx * dx + dz * dz;
+            if (d < bestD) {
+                bestD = d;
+                best = o;
+            }
+        }
+        return best;
+    }
+
+    /** Door to door, a gently wandering line of (x, z) points. */
+    private List<int[]> roadPath(Resident a, Resident b) {
+        int[] from = Homestead.world(a, 3, 0, -2), to = Homestead.world(b, 3, 0, -2);
+        List<int[]> out = new ArrayList<>();
+        int x = from[0], z = from[2];
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        for (int i = 0; i < cfg.roadMax * 2 && (x != to[0] || z != to[2]); i++) {
+            int dx = Integer.signum(to[0] - x), dz = Integer.signum(to[2] - z);
+            if (dx != 0 && (dz == 0 || rnd.nextInt(Math.abs(to[0] - x) + Math.abs(to[2] - z)) < Math.abs(to[0] - x))) x += dx;
+            else z += dz;
+            out.add(new int[] {x, z});
+        }
+        return out;
+    }
+
+    /** Lays the next stretch of road: dirt path on grass, a plank bridge over water, plants cleared. */
+    private void roadChore(Resident r, Resident f, Player p) {
+        if (now < r.nextChoreAt) return;
+        r.nextChoreAt = now + 10;
+        World w = p.getWorld();
+        if (r.road.isEmpty()) {
+            if (r.roadTarget != null) {
+                f.roadsTo.add(r.roadTarget);
+                save();
+            }
+            r.activityEnd = now;
+            return;
+        }
+        int[] pt = r.road.get(0);
+        double dx = p.getX() - pt[0], dz = p.getZ() - pt[1];
+        if (dx * dx + dz * dz > 10 * 10 && !stuck(r)) {
+            if (r.stuckSince == 0) r.stuckSince = now;
+            if (now >= r.gotoAt) {
+                int[] ahead = r.road.get(Math.min(6, r.road.size() - 1));
+                int g = LifeUtil.ground(w, ahead[0], ahead[1]);
+                LifeUtil.run(cfg.moveCommands, values(r, ahead[0], g == Integer.MIN_VALUE ? p.getLocation().getBlockY() : g + 1, ahead[1]), log);
+                r.gotoAt = now + 120;
+            }
+            return;
+        }
+        if (dx * dx + dz * dz <= 10 * 10) r.stuckSince = 0;
+        r.road.remove(0);
+        if (!w.isChunkGenerated(pt[0] >> 4, pt[1] >> 4) || insideAnyBase(w, pt[0], pt[1])) return;
+        int top = w.getHighestBlockYAt(pt[0], pt[1], org.bukkit.HeightMap.MOTION_BLOCKING_NO_LEAVES);
+        Block b = w.getBlockAt(pt[0], top, pt[1]);
+        Material m = b.getType();
+        if (b.isLiquid()) {
+            b.setType(Material.matchMaterial(founder(r).wood + "_PLANKS") == null ? Material.OAK_PLANKS : Material.matchMaterial(founder(r).wood + "_PLANKS"), false);
+        } else if (m == Material.GRASS_BLOCK || m == Material.DIRT || m == Material.COARSE_DIRT || m == Material.PODZOL || m == Material.MYCELIUM || m == Material.ROOTED_DIRT) {
+            Block above = b.getRelative(0, 1, 0);
+            if (org.bukkit.Tag.REPLACEABLE.isTagged(above.getType()) || org.bukkit.Tag.FLOWERS.isTagged(above.getType())) above.setType(Material.AIR, false);
+            if (above.getType().isAir()) b.setType(Material.DIRT_PATH, false);
+        } else {
+            return;
+        }
+        home.hold(p, Material.IRON_SHOVEL);
+        w.playSound(b.getLocation(), org.bukkit.Sound.ITEM_SHOVEL_FLATTEN, 0.8f, 1f);
+    }
+
+    private boolean insideAnyBase(World w, int x, int z) {
+        for (Resident o : residents.values()) {
+            if (!o.base || o.world == null || !o.world.equals(w.getName())) continue;
+            int[] a = Homestead.world(o, -10, 0, -1), b = Homestead.world(o, 15, 0, 16);
+            if (x >= Math.min(a[0], b[0]) && x <= Math.max(a[0], b[0]) && z >= Math.min(a[2], b[2]) && z <= Math.max(a[2], b[2])) return true;
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------ market
+
+    private Location marketCentre() {
+        World w = Bukkit.getWorlds().get(0);
+        if (cfg.marketAtSpawn) {
+            Location s = w.getSpawnLocation();
+            int g = LifeUtil.ground(w, s.getBlockX(), s.getBlockZ());
+            return new Location(w, s.getBlockX(), g == Integer.MIN_VALUE ? s.getBlockY() : g, s.getBlockZ());
+        }
+        return new Location(w, cfg.marketX, cfg.marketY, cfg.marketZ);
+    }
+
+    /** Each resident keeps the same stall. */
+    private int stallFor(Resident r) {
+        return Math.floorMod(r.name.hashCode(), cfg.marketStalls);
+    }
+
+    private Homestead.Job stallJob(int index) {
+        return stalls.computeIfAbsent(index, i -> {
+            Location c = marketCentre();
+            double ang = Math.PI * 2 * i / cfg.marketStalls;
+            int x = c.getBlockX() + (int) Math.round(Math.cos(ang) * cfg.marketRadius);
+            int z = c.getBlockZ() + (int) Math.round(Math.sin(ang) * cfg.marketRadius);
+            Homestead.Job j = new Homestead.Job();
+            j.w = c.getWorld();
+            int g = LifeUtil.ground(j.w, x, z);
+            j.ox = x;
+            j.oy = g == Integer.MIN_VALUE ? c.getBlockY() : g;
+            j.oz = z;
+            j.rot = Homestead.facingRotation(x, z, c.getBlockX(), c.getBlockZ());
+            j.plan = Blueprint.stall(cfg.woods.get(i % cfg.woods.size()), cfg.stallColours.get(i % cfg.stallColours.size()));
+            return j;
+        });
+    }
+
+    private int[] stallSpot(int index) {
+        if (index < 0) return null;
+        Homestead.Job j = stallJob(index);
+        return j.at(1, 1, 1);
+    }
+
+    /** Puts their stall up if it isn't there yet, then stands behind the counter. */
+    private void marketChore(Resident r, Player p) {
+        if (now < r.nextChoreAt || r.stall < 0) return;
+        Homestead.Job j = stallJob(r.stall);
+        int[] spot = j.at(1, 1, 1);
+        double dx = p.getX() - (spot[0] + 0.5), dz = p.getZ() - (spot[2] + 0.5);
+        boolean there = dx * dx + dz * dz < 6 * 6 && p.getWorld() == j.w;
+        if (!there && !stuck(r)) {
+            if (r.stuckSince == 0) r.stuckSince = now;
+            if (now >= r.gotoAt) {
+                LifeUtil.run(cfg.moveCommands, values(r, spot[0], spot[1], spot[2]), log);
+                r.gotoAt = now + 200;
+            }
+            r.nextChoreAt = now + 20;
+            return;
+        }
+        if (there) r.stuckSince = 0;
+        if (j.progress < j.plan.size()) {
+            home.step(j, p, true);
+            r.nextChoreAt = now + cfg.buildTicks.random();
+            if (j.progress >= j.plan.size()) restoreHand(r, p);
+            return;
+        }
+        r.nextChoreAt = now + 20 * 10;
+    }
+
+    /** Right-click a resident at their stall to trade with them. */
+    @SuppressWarnings("deprecation")
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onTrade(org.bukkit.event.player.PlayerInteractEntityEvent e) {
+        if (!(e.getRightClicked() instanceof Player seller)) return;
+        Resident r = residents.get(LifeUtil.key(seller.getName()));
+        if (r == null || !r.online || !r.activity.equals("market") || !connected.contains(LifeUtil.key(seller.getName()))) return;
+        e.setCancelled(true);
+        List<org.bukkit.inventory.MerchantRecipe> recipes = new ArrayList<>();
+        List<String> pool = new ArrayList<>(cfg.trades);
+        Collections.shuffle(pool, new java.util.Random(r.name.hashCode()));
+        for (String t : pool.subList(0, Math.min(pool.size(), 3 + Math.floorMod(r.name.hashCode(), 3)))) {
+            org.bukkit.inventory.MerchantRecipe recipe = trade(t);
+            if (recipe != null) recipes.add(recipe);
+        }
+        if (recipes.isEmpty()) return;
+        org.bukkit.inventory.Merchant m = Bukkit.createMerchant();
+        m.setRecipes(recipes);
+        e.getPlayer().openMerchant(m, true);
+        seller.swingMainHand();
+    }
+
+    /** "DIAMOND:1 -> EMERALD:8" or "IRON_INGOT:4 + COAL:2 -> TORCH:16". */
+    static org.bukkit.inventory.MerchantRecipe trade(String line) {
+        String[] sides = line.split("->");
+        if (sides.length != 2) return null;
+        ItemStack result = stack(sides[1].trim());
+        if (result == null) return null;
+        org.bukkit.inventory.MerchantRecipe recipe = new org.bukkit.inventory.MerchantRecipe(result, 12);
+        for (String in : sides[0].split("\\+")) {
+            ItemStack it = stack(in.trim());
+            if (it != null) recipe.addIngredient(it);
+        }
+        return recipe.getIngredients().isEmpty() ? null : recipe;
+    }
+
+    private static ItemStack stack(String s) {
+        String[] p = s.split(":");
+        Material m = Material.matchMaterial(p[0].trim());
+        if (m == null || !m.isItem()) return null;
+        int n = 1;
+        try {
+            if (p.length > 1) n = Integer.parseInt(p[1].trim());
+        } catch (NumberFormatException ignored) {
+            n = 1;
+        }
+        return new ItemStack(m, Math.max(1, Math.min(m.getMaxStackSize(), n)));
+    }
+
+    // ------------------------------------------------------------------ nether trips
+
+    private static World netherWorld() {
+        for (World w : Bukkit.getWorlds()) if (w.getEnvironment() == World.Environment.NETHER) return w;
+        return null;
+    }
+
+    /** Walks to the base's portal and goes through; comes back when the trip is over with nether loot. */
+    private void netherChore(Resident r, Resident f, Player p) {
+        if (now < r.nextChoreAt || r.inNether) return;
+        r.nextChoreAt = now + 20;
+        int[] front = Homestead.world(f, Blueprint.portalFront()[0], 1, Blueprint.portalFront()[2]);
+        double dx = p.getX() - (front[0] + 0.5), dz = p.getZ() - (front[2] + 0.5);
+        if (dx * dx + dz * dz > 5 * 5 && !stuck(r)) {
+            if (r.stuckSince == 0) r.stuckSince = now;
+            if (now >= r.gotoAt) {
+                LifeUtil.run(cfg.moveCommands, values(r, front[0], front[1], front[2]), log);
+                r.gotoAt = now + 200;
+            }
+            return;
+        }
+        World nether = netherWorld();
+        if (nether == null || !home.portalLit(f)) {
+            r.activityEnd = now;
+            return;
+        }
+        Location there = netherSpot(nether, front[0] / 8, front[2] / 8);
+        if (there == null) {
+            r.activityEnd = now;
+            return;
+        }
+        r.netherBack = new Location(p.getWorld(), front[0] + 0.5, front[1], front[2] + 0.5);
+        p.getWorld().playSound(p.getLocation(), org.bukkit.Sound.BLOCK_PORTAL_TRAVEL, 0.4f, 1f);
+        p.teleport(there);
+        r.inNether = true;
+        LifeUtil.run(cfg.moveCommands, values(r, there.getBlockX() + 6, there.getBlockY(), there.getBlockZ() + 6), log);
+    }
+
+    /** Solid floor with headroom near (x, z) in the Nether, away from lava. */
+    private static Location netherSpot(World w, int x, int z) {
+        for (int r = 0; r <= 24; r += 3) {
+            for (int a = 0; a < 8; a++) {
+                int cx = x + (int) Math.round(Math.cos(a * Math.PI / 4) * r), cz = z + (int) Math.round(Math.sin(a * Math.PI / 4) * r);
+                for (int y = 100; y >= 32; y--) {
+                    Block floor = w.getBlockAt(cx, y - 1, cz);
+                    if (floor.getType().isSolid() && floor.getType() != Material.BEDROCK && floor.getType() != Material.MAGMA_BLOCK
+                            && w.getBlockAt(cx, y, cz).getType().isAir() && w.getBlockAt(cx, y + 1, cz).getType().isAir()
+                            && !w.getBlockAt(cx, y - 2, cz).isLiquid()) return new Location(w, cx + 0.5, y, cz + 0.5);
+                }
+            }
+        }
+        return null;
+    }
+
+    private void returnFromNether(Resident r, Player p) {
+        r.inNether = false;
+        if (r.netherBack == null) return;
+        p.teleport(r.netherBack);
+        p.getWorld().playSound(r.netherBack, org.bukkit.Sound.BLOCK_PORTAL_TRAVEL, 0.4f, 1.2f);
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        List<ItemStack> loot = new ArrayList<>();
+        for (String s : cfg.netherLoot) {
+            String[] parts = s.split(":");
+            Material m = Material.matchMaterial(parts[0].trim());
+            if (m == null || !m.isItem()) continue;
+            int n = parts.length > 1 ? dev.unstablesmp.Settings.IntRange.parse(parts[1], new dev.unstablesmp.Settings.IntRange(1, 1)).random() : 1;
+            if (n > 0) loot.add(new ItemStack(m, Math.min(n, m.getMaxStackSize())));
+        }
+        Homestead.give(p, loot);
+        r.netherBack = null;
+        if (rnd.nextBoolean()) LifeUtil.run(cfg.moveCommands, values(r, r.hx, r.hy, r.hz), log);
+    }
+
+    // ------------------------------------------------------------------ crew wars
+
+    /** Starts a feud: {@code a}'s crew raids {@code b}'s base. Returns null if it can't (a message key otherwise ok). */
+    public String war(String a, String b) {
+        Resident ra = residents.get(LifeUtil.key(a)), rb = residents.get(LifeUtil.key(b));
+        if (ra == null || rb == null) return "unknown";
+        Resident fa = founder(ra), fb = founder(rb);
+        if (fa == fb) return "same";
+        if (!fb.base || !fb.built) return "no-base";
+        for (War w : wars) if (w.attackers == fa || w.defenders == fb || w.attackers == fb || w.defenders == fa) return "busy";
+        War w = new War(fa, fb);
+        w.bombAt = now + 20 * 25;
+        w.endAt = now + 20 * 60 * cfg.warMinutes.random();
+        wars.add(w);
+        if (!running) start();
+        int delay = 0;
+        for (Resident m : crew(fa)) delay = summon(m, delay);
+        for (Resident m : crew(fb)) delay = summon(m, delay);
+        later(80, () -> {
+            int[] target = Homestead.world(fb, 3, 1, -4);
+            for (Resident m : crew(fa)) if (m.online) force(m, "raid", w.endAt, target, cfg.moveCommands);
+        });
+        log.info("Crew war: " + fa.name + "'s crew is raiding " + fb.name + "'s base.");
+        return null;
+    }
+
+    public int stopWars() {
+        int n = wars.size();
+        for (War w : new ArrayList<>(wars)) endWar(w);
+        return n;
+    }
+
+    private List<Resident> crew(Resident f) {
+        List<Resident> out = new ArrayList<>();
+        for (Resident r : residents.values()) if (r == f || (f.crew != null && f.crew.equals(r.crew))) out.add(r);
+        return out;
+    }
+
+    /** Brings a crew member on for the war if they're off. */
+    private int summon(Resident m, int delay) {
+        if (m.online || Bukkit.getPlayerExact(m.name) != null) return delay;
+        later(delay + 1, () -> {
+            if (!m.online) beginSession(m, true, null);
+        });
+        return delay + 20 * (2 + ThreadLocalRandom.current().nextInt(6));
+    }
+
+    private void tickWars() {
+        for (War w : new ArrayList<>(wars)) {
+            if (w.phase == 0 && now >= w.bombAt) {
+                w.phase = 1;
+                bomb(w);
+                List<Resident> as = online(crew(w.attackers)), ds = online(crew(w.defenders));
+                for (Resident r : as) warOn(r, ds, w.endAt);
+                for (Resident r : ds) warOn(r, as, w.endAt);
+            }
+            if (now >= w.endAt) endWar(w);
+        }
+    }
+
+    private List<Resident> online(List<Resident> list) {
+        List<Resident> out = new ArrayList<>();
+        for (Resident r : list) if (r.online && Bukkit.getPlayerExact(r.name) != null) out.add(r);
+        return out;
+    }
+
+    private void warOn(Resident r, List<Resident> enemies, int until) {
+        if (enemies.isEmpty()) return;
+        Player e = Bukkit.getPlayerExact(enemies.get(ThreadLocalRandom.current().nextInt(enemies.size())).name);
+        r.warTarget = e == null ? null : e.getUniqueId();
+        force(r, "war", until, null, List.of());
+    }
+
+    /** The attackers light TNT against the defenders' house walls. */
+    private void bomb(War w) {
+        World world = Bukkit.getWorld(w.defenders.world);
+        if (world == null) return;
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        List<Resident> as = online(crew(w.attackers));
+        int[][] walls = {{3, 1, -1}, {-1, 1, 3}, {7, 1, 3}, {3, 1, 7}, {1, 1, -1}, {5, 1, -1}};
+        for (int i = 0; i < cfg.warTnt; i++) {
+            int[] lc = walls[i % walls.length];
+            int[] c = Homestead.world(w.defenders, lc[0], lc[1], lc[2]);
+            Location at = new Location(world, c[0] + 0.5, c[1], c[2] + 0.5);
+            world.spawn(at, org.bukkit.entity.TNTPrimed.class, t -> t.setFuseTicks(50 + rnd.nextInt(50)));
+            world.playSound(at, org.bukkit.Sound.ITEM_FLINTANDSTEEL_USE, 1f, 1f);
+            if (!as.isEmpty()) {
+                Player p = Bukkit.getPlayerExact(as.get(i % as.size()).name);
+                if (p != null) home.hold(p, Material.FLINT_AND_STEEL);
+            }
+        }
+    }
+
+    /** The raid is over: attackers head home, defenders fix their house. */
+    private void endWar(War w) {
+        wars.remove(w);
+        for (Resident r : crew(w.attackers)) {
+            if (r.online && (r.activity.equals("raid") || r.activity.equals("war"))) r.activityEnd = now;
+            r.warTarget = null;
+        }
+        for (Resident r : crew(w.defenders)) {
+            if (r.online && r.activity.equals("war")) r.activityEnd = now;
+            r.warTarget = null;
+        }
+        w.defenders.repairing = true;
+        w.defenders.progress = 0;
+        home.forget(w.defenders);
+        log.info("Crew war over: " + w.defenders.name + "'s crew is rebuilding.");
+    }
+
+    /** Called every second: NULL near a base pulls its residents in to defend; automatic wars. */
+    private void tickSociety() {
+        tickWars();
+        for (Resident r : residents.values()) {
+            if (!r.online || OVERRIDES.contains(r.activity)) continue;
+            if (invasionNear(r) == null) continue;
+            Player p = Bukkit.getPlayerExact(r.name);
+            if (p == null) continue;
+            for (Entity e : nullBots.get()) {
+                if (e.getWorld() == p.getWorld() && e.getLocation().distanceSquared(p.getLocation()) < 64 * 64) {
+                    force(r, "defend", now + 20 * 60 * 10, null, List.of());
+                    break;
+                }
+            }
+        }
+        if (cfg.warsAuto && wars.isEmpty() && now >= nextAutoWar) {
+            nextAutoWar = now + 20 * 60 * cfg.warEveryMinutes.random();
+            List<Resident> bases = new ArrayList<>();
+            for (Resident r : residents.values()) if (r.base && r.built && founder(r) == r && !online(crew(r)).isEmpty()) bases.add(r);
+            if (bases.size() >= 2) {
+                Collections.shuffle(bases);
+                war(bases.get(0).name, bases.get(1).name);
+            }
+        }
+    }
+
+    /** For the bandit camp: the builder that knows how to put things up. */
+    Homestead homestead() {
+        return home;
+    }
+
     // ------------------------------------------------------------------ homes and bases
 
     private boolean ensureHome(Resident r) {
@@ -729,7 +1369,7 @@ public final class LifeDirector implements Listener {
         // bases never overlap: keep clear of every other base already planned
         for (Resident o : residents.values()) {
             if (o == f || !o.base || o.world == null || !o.world.equals(w.getName())) continue;
-            if (Math.abs(o.bx - x) < 26 && Math.abs(o.bz - z) < 26) return false;
+            if (Math.abs(o.bx - x) < 36 && Math.abs(o.bz - z) < 36) return false;
         }
         Location spawn = w.getSpawnLocation();
         int preferred = Homestead.facingRotation(x, z, spawn.getBlockX(), spawn.getBlockZ());
@@ -866,6 +1506,9 @@ public final class LifeDirector implements Listener {
                 r.beds = b.getInt("beds", 1);
                 r.progress = b.getInt("progress");
                 r.built = b.getBoolean("built");
+                r.stage = b.getInt("stage", r.built ? 1 : 0);
+                if (r.built && r.stage == 0) r.stage = 1;
+                r.roadsTo.addAll(b.getStringList("roads"));
             }
             residents.put(LifeUtil.key(r.name), r);
         }
@@ -893,6 +1536,8 @@ public final class LifeDirector implements Listener {
                 y.set(k + ".base.beds", r.beds);
                 y.set(k + ".base.progress", r.progress);
                 y.set(k + ".base.built", r.built);
+                y.set(k + ".base.stage", r.stage);
+                if (!r.roadsTo.isEmpty()) y.set(k + ".base.roads", new ArrayList<>(r.roadsTo));
             }
         }
         try {

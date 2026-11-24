@@ -138,12 +138,47 @@ final class Homestead {
         return hs.get(hs.size() / 2);
     }
 
+    /** What the founder is building now: the house (first, or again after a raid), else the next extension. */
     List<Blueprint.Piece> plan(LifeDirector.Resident f) {
-        return plans.computeIfAbsent(LifeUtil.key(f.name), k -> Blueprint.plan(f.wood, f.crop, f.bedColour, f.beds));
+        boolean house = !f.built || f.repairing || f.stage < 1 || f.stage > Blueprint.STAGES;
+        boolean repair = f.built && f.repairing;
+        String key = LifeUtil.key(f.name) + (repair ? "#repair" : house ? "#house" : "#" + f.stage);
+        return plans.computeIfAbsent(key, k -> {
+            if (!house) return Blueprint.extension(f.stage, f.wood);
+            List<Blueprint.Piece> p = Blueprint.plan(f.wood, f.crop, f.bedColour, f.beds);
+            // fixing up after a raid: fill the holes, never knock down what's still standing
+            if (repair) p = p.stream().filter(pc -> pc.kind() != Blueprint.Kind.CLEAR).toList();
+            return p;
+        });
+    }
+
+    /** Whether the base's nether portal (stage 4) is standing and lit. */
+    boolean portalLit(LifeDirector.Resident f) {
+        World w = Bukkit.getWorld(f.world);
+        if (w == null) return false;
+        int[] c = world(f, -6, 2, 12);
+        return w.getBlockAt(c[0], c[1], c[2]).getType() == Material.NETHER_PORTAL;
     }
 
     void forget(LifeDirector.Resident f) {
-        plans.remove(LifeUtil.key(f.name));
+        plans.keySet().removeIf(k -> k.startsWith(LifeUtil.key(f.name) + "#"));
+    }
+
+    /** Whether extension {@code stage}'s ground is free (nobody's build, no water) so it can go up. */
+    boolean extensionOk(LifeDirector.Resident f, int stage) {
+        World w = Bukkit.getWorld(f.world);
+        if (w == null) return false;
+        int[] box = Blueprint.extensionBox(stage);
+        for (int lx = box[0]; lx <= box[1]; lx++) {
+            for (int lz = box[2]; lz <= box[3]; lz++) {
+                int[] c = world(f, lx, 0, lz);
+                if (!w.isChunkGenerated(c[0] >> 4, c[2] >> 4)) return false;
+                int g = LifeUtil.ground(w, c[0], c[2]);
+                if (g == Integer.MIN_VALUE || g - f.by > 8 || f.by - g > 5) return false; // dug into the hill / built up
+                for (int y = f.by; y <= f.by + 6; y++) if (manMade(w.getBlockAt(c[0], y, c[2]))) return false;
+            }
+        }
+        return true;
     }
 
     private BlockData data(String raw, int rot) {
@@ -153,76 +188,136 @@ final class Homestead {
 
     // ------------------------------------------------------------------ building
 
-    /** One building action by {@code builder} on founder {@code f}'s base ({@code force}: even if it's out of reach). */
+    /** A build job: where, which way it faces, what, how far along, whose sign, what a fresh chest gets. */
+    static final class Job {
+        World w;
+        int ox, oy, oz, rot;
+        List<Blueprint.Piece> plan;
+        int progress;
+        String owner;
+        List<String> signs;
+        List<String> chestItems;
+
+        int[] at(int lx, int ly, int lz) {
+            int[] o = Blueprint.rotate(lx, lz, rot);
+            return new int[] {ox + o[0], oy + ly, oz + o[1]};
+        }
+    }
+
+    /** One building action by {@code builder} on founder {@code f}'s base (the house, a repair, or the next extension). */
     Step buildStep(LifeDirector.Resident f, Player builder, boolean force) {
         World w = Bukkit.getWorld(f.world);
         if (w == null) return Step.IDLE;
-        List<Blueprint.Piece> plan = plan(f);
+        Job j = job(f, w);
+        Step s = step(j, builder, force);
+        f.progress = j.progress;
+        if (s == Step.DONE && !f.built) {
+            f.built = true;
+            log.info(f.name + " finished building their base at " + f.bx + " " + f.by + " " + f.bz + ".");
+        }
+        return s;
+    }
+
+    Job job(LifeDirector.Resident f, World w) {
+        Job j = new Job();
+        j.w = w;
+        j.ox = f.bx;
+        j.oy = f.by;
+        j.oz = f.bz;
+        j.rot = f.rot;
+        j.plan = plan(f);
+        j.progress = f.progress;
+        j.owner = f.name;
+        j.signs = cfg.signs;
+        j.chestItems = cfg.starterItems;
+        return j;
+    }
+
+    /** Places the next piece(s) of any job; PLACED when something went up, DONE when the plan is complete. */
+    Step step(Job j, Player builder, boolean force) {
+        World w = j.w;
+        List<Blueprint.Piece> plan = j.plan;
         double spent = 0;
-        while (f.progress < plan.size()) {
-            Blueprint.Piece pc = plan.get(f.progress);
-            int[] c = world(f, pc.x(), pc.y(), pc.z());
+        while (j.progress < plan.size()) {
+            Blueprint.Piece pc = plan.get(j.progress);
+            int[] c = j.at(pc.x(), pc.y(), pc.z());
             Block b = w.getBlockAt(c[0], c[1], c[2]);
             Material cur = b.getType();
             double cost;
             switch (pc.kind()) {
                 case CLEAR -> {
                     if (cur.isAir()) {
-                        f.progress++;
+                        j.progress++;
                         continue;
                     }
-                    if (!force && far(builder, c)) return Step.TOO_FAR;
+                    if (!force && builder != null && far(builder, c)) return Step.TOO_FAR;
                     boolean light = Tag.LEAVES.isTagged(cur) || Tag.REPLACEABLE.isTagged(cur) || Tag.FLOWERS.isTagged(cur);
-                    hold(builder, breakTool(cur));
+                    if (builder != null) hold(builder, breakTool(cur));
                     w.playEffect(b.getLocation(), Effect.STEP_SOUND, b.getBlockData());
                     b.setType(Material.AIR, false);
                     cost = light ? 0.34 : 1;
                 }
                 case FILL -> {
                     if (cur.isSolid()) {
-                        f.progress++;
+                        j.progress++;
                         continue;
                     }
-                    if (!force && far(builder, c)) return Step.TOO_FAR;
+                    if (!force && builder != null && far(builder, c)) return Step.TOO_FAR;
                     place(builder, b, Material.DIRT.createBlockData());
                     cost = 0.5;
                 }
                 case GROUND -> {
                     boolean dirtLike = cur == Material.DIRT || cur == Material.COARSE_DIRT || cur == Material.ROOTED_DIRT || cur == Material.PODZOL;
                     if (cur == Material.GRASS_BLOCK || (cur.isSolid() && !dirtLike)) {
-                        f.progress++;
+                        j.progress++;
                         continue;
                     }
-                    if (!force && far(builder, c)) return Step.TOO_FAR;
+                    if (!force && builder != null && far(builder, c)) return Step.TOO_FAR;
                     place(builder, b, Material.GRASS_BLOCK.createBlockData());
                     cost = 0.5;
                 }
+                case ANIMAL -> {
+                    spawnAnimal(w, b.getLocation().add(0.5, 0, 0.5), pc.data());
+                    j.progress++;
+                    continue;
+                }
                 default -> {
-                    BlockData want = data(pc.data(), f.rot);
+                    BlockData want = data(pc.data(), j.rot);
                     if (b.getBlockData().matches(want) || (pc.kind() == Blueprint.Kind.CROP && cur == want.getMaterial())) {
-                        f.progress++;
+                        j.progress++;
                         continue;
                     }
-                    if (!force && far(builder, c)) return Step.TOO_FAR;
+                    if (!force && builder != null && far(builder, c)) return Step.TOO_FAR;
                     if (pc.kind() == Blueprint.Kind.CROP && want instanceof Ageable a) {
                         Ageable copy = (Ageable) a.clone();
                         copy.setAge(ThreadLocalRandom.current().nextInt(copy.getMaximumAge() + 1));
                         want = copy;
                     }
                     place(builder, b, want);
-                    afterPlace(f, b, pc);
+                    afterPlace(j, b, pc);
                     cost = 1;
                 }
             }
-            f.progress++;
+            j.progress++;
             spent += cost;
-            if (spent >= 1) return Step.PLACED;
-        }
-        if (!f.built) {
-            f.built = true;
-            log.info(f.name + " finished building their base at " + f.bx + " " + f.by + " " + f.bz + ".");
+            if (spent >= 1 && builder != null) return Step.PLACED;
         }
         return Step.DONE;
+    }
+
+    /** Puts a farm animal in the pen unless a couple of that kind are already there. */
+    private static void spawnAnimal(World w, Location at, String type) {
+        org.bukkit.entity.EntityType t;
+        try {
+            t = org.bukkit.entity.EntityType.valueOf(type.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return;
+        }
+        int near = 0;
+        for (Entity e : w.getNearbyEntities(at, 6, 3, 6)) if (e.getType() == t) near++;
+        if (near >= 2) return;
+        Entity e = w.spawnEntity(at, t);
+        if (e instanceof org.bukkit.entity.LivingEntity le) le.setRemoveWhenFarAway(false);
     }
 
     /** Not at the job: more than 14 blocks away across (the whole plot is in reach from the middle of it) or 12 up/down. */
@@ -250,7 +345,7 @@ final class Homestead {
     }
 
     private void place(Player p, Block b, BlockData data) {
-        hold(p, handItem(data.getMaterial()));
+        if (p != null) hold(p, handItem(data.getMaterial()));
         boolean physics = data instanceof MultipleFacing || data.getMaterial() == Material.WATER;
         b.setBlockData(data, physics);
         try {
@@ -260,14 +355,14 @@ final class Homestead {
         }
     }
 
-    private void afterPlace(LifeDirector.Resident f, Block b, Blueprint.Piece pc) {
+    private void afterPlace(Job j, Block b, Blueprint.Piece pc) {
         switch (pc.kind()) {
             case CONNECT -> connect(b);
             case SIGN -> {
                 if (b.getState() instanceof Sign sign) {
-                    List<String> lines = cfg.signs;
-                    String raw = lines.isEmpty() ? "{name}'s base" : lines.get(ThreadLocalRandom.current().nextInt(lines.size()));
-                    String[] parts = raw.replace("{name}", f.name).split("\\|");
+                    List<String> lines = j.signs;
+                    String raw = lines == null || lines.isEmpty() ? "{name}'s base" : lines.get(ThreadLocalRandom.current().nextInt(lines.size()));
+                    String[] parts = raw.replace("{name}", j.owner == null ? "" : j.owner).split("\\|");
                     for (int i = 0; i < 4 && i < parts.length; i++) sign.getSide(Side.FRONT).line(i, Component.text(parts[i]));
                     sign.update(true, false);
                 }
@@ -275,7 +370,7 @@ final class Homestead {
             case CHEST -> {
                 if (b.getState() instanceof Chest chest && chest.getBlockInventory().isEmpty()) {
                     ThreadLocalRandom r = ThreadLocalRandom.current();
-                    for (String s : cfg.starterItems) {
+                    for (String s : j.chestItems == null ? List.<String>of() : j.chestItems) {
                         String[] p = s.split(":");
                         Material m = Material.matchMaterial(p[0].trim());
                         if (m == null || !m.isItem()) continue;
@@ -332,6 +427,7 @@ final class Homestead {
         if (n.endsWith("_WALL_SIGN")) return Material.matchMaterial(n.replace("_WALL_SIGN", "_SIGN"));
         if (m == Material.WATER) return Material.WATER_BUCKET;
         if (m == Material.FARMLAND) return Material.IRON_HOE;
+        if (m == Material.NETHER_PORTAL || m == Material.FIRE) return Material.FLINT_AND_STEEL;
         if (m == Material.WHEAT) return Material.WHEAT_SEEDS;
         if (m == Material.CARROTS) return Material.CARROT;
         if (m == Material.POTATOES) return Material.POTATO;
@@ -552,6 +648,8 @@ final class Homestead {
         if (n.endsWith("_ORE") || n.startsWith("RAW_") || n.endsWith("_INGOT") || n.endsWith("_NUGGET")) return true;
         if (n.equals("DIAMOND") || n.equals("EMERALD") || n.equals("COAL") || n.equals("REDSTONE") || n.equals("LAPIS_LAZULI")
                 || n.equals("QUARTZ") || n.equals("AMETHYST_SHARD") || n.equals("FLINT")) return true;
+        if (m == Material.BLAZE_ROD || m == Material.GLOWSTONE_DUST || m == Material.NETHER_WART || m == Material.MAGMA_CREAM
+                || m == Material.NETHERRACK || m == Material.SOUL_SAND || m == Material.GOLD_INGOT) return true;
         if (Tag.LOGS.isTagged(m) || Tag.PLANKS.isTagged(m) || Tag.SAPLINGS.isTagged(m) || m == Material.STICK || m == Material.APPLE) return true;
         if (n.equals("COBBLESTONE") || n.equals("COBBLED_DEEPSLATE") || n.equals("STONE") || n.equals("DIRT") || n.equals("GRAVEL")
                 || n.equals("SAND") || n.equals("ANDESITE") || n.equals("DIORITE") || n.equals("GRANITE") || n.equals("TUFF")) return true;

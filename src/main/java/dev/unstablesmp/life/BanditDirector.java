@@ -57,12 +57,19 @@ public final class BanditDirector {
     private final List<Pending> pending = new ArrayList<>();
     private int now;
     private int nextRaid = 20 * 60 * 3;
+    private final java.io.File file;
+    /** The bandit hideout: where it is, how far it's built, whether it exists at all. */
+    private Homestead.Job camp;
+    private String campWorld;
+    private int nextCampTry = 20 * 30;
 
-    public BanditDirector(Logger log, LifeDirector residents, LifeConfig cfg) {
+    public BanditDirector(java.io.File dataFolder, Logger log, LifeDirector residents, LifeConfig cfg) {
+        this.file = new java.io.File(dataFolder, "bandits.yml");
         this.log = log;
         this.residents = residents;
         this.cfg = cfg;
         this.auto = cfg.banditsAuto;
+        loadCamp();
     }
 
     public void config(LifeConfig cfg) {
@@ -96,6 +103,7 @@ public final class BanditDirector {
         now = tick;
         runPending();
         if (now % 20 != 0) return;
+        tickCamp();
         if (auto && residents.running() && raids.isEmpty() && now >= nextRaid) {
             Player target = pickTarget();
             if (target != null) raid(target, 0);
@@ -105,6 +113,7 @@ public final class BanditDirector {
             Raid r = it.next();
             r.members.removeIf(n -> Bukkit.getPlayerExact(n) == null && now - r.startedAt > 200);
             if (r.members.isEmpty() && now - r.startedAt > 200) {
+                stash(); // the hideout fills up with what they took
                 it.remove();
                 continue;
             }
@@ -239,6 +248,12 @@ public final class BanditDirector {
             Location l = p.getLocation();
             double ang = rnd.nextDouble(Math.PI * 2);
             int x = l.getBlockX() + (int) (Math.cos(ang) * 60), z = l.getBlockZ() + (int) (Math.sin(ang) * 60);
+            if (camp != null && camp.w == p.getWorld() && camp.progress >= camp.plan.size()) {
+                // back to the hideout with whatever they got
+                int[] c = camp.at(3, 1, -3);
+                x = c[0] + rnd.nextInt(-2, 3);
+                z = c[2] + rnd.nextInt(-2, 3);
+            }
             int g = LifeUtil.ground(p.getWorld(), x, z);
             LifeUtil.run(cfg.banditFlee, values(name, x, g == Integer.MIN_VALUE ? l.getBlockY() : g + 1, z, r.targetName), log);
         }
@@ -260,6 +275,135 @@ public final class BanditDirector {
             }
         }
         return n;
+    }
+
+    // ------------------------------------------------------------------ camp
+
+    /** Where the hideout is (null if there isn't one). */
+    public Location campLocation() {
+        if (camp == null) return null;
+        int[] c = camp.at(3, 1, 2);
+        return new Location(camp.w, c[0] + 0.5, c[1], c[2] + 0.5);
+    }
+
+    public boolean campBuilt() {
+        return camp != null && camp.progress >= camp.plan.size();
+    }
+
+    /** Puts the hideout here (facing the way {@code yaw} looks), replacing any old one's record. */
+    public void setCamp(Location at) {
+        World w = at.getWorld();
+        int rot = Math.floorMod(Math.round(at.getYaw() / 90f) + 2, 4);
+        int g = LifeUtil.ground(w, at.getBlockX(), at.getBlockZ());
+        camp = job(w, at.getBlockX(), g == Integer.MIN_VALUE ? at.getBlockY() - 1 : g, at.getBlockZ(), rot, 0);
+        saveCamp();
+        log.info("Bandit camp set at " + camp.ox + " " + camp.oy + " " + camp.oz + ".");
+    }
+
+    /** Finds a plot out in the wild for the hideout. */
+    public boolean findCamp() {
+        World w = Bukkit.getWorlds().get(0);
+        Location s = w.getSpawnLocation();
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        Homestead home = residents.homestead();
+        for (int attempt = 0; attempt < 24; attempt++) {
+            double ang = rnd.nextDouble(Math.PI * 2);
+            int d = cfg.campDistance.random();
+            int x = s.getBlockX() + (int) (Math.cos(ang) * d), z = s.getBlockZ() + (int) (Math.sin(ang) * d);
+            if (!w.isChunkGenerated(x >> 4, z >> 4)) continue;
+            int rot = rnd.nextInt(4);
+            int g = Homestead.floorFor(w, x, z, rot);
+            if (g == Integer.MIN_VALUE || !home.siteOk(w, x, g, z, rot)) continue;
+            camp = job(w, x, g, z, rot, 0);
+            saveCamp();
+            log.info("Bandits picked a camp at " + x + " " + g + " " + z + ".");
+            return true;
+        }
+        return false;
+    }
+
+    private Homestead.Job job(World w, int x, int y, int z, int rot, int progress) {
+        Homestead.Job j = new Homestead.Job();
+        j.w = w;
+        j.ox = x;
+        j.oy = y;
+        j.oz = z;
+        j.rot = rot;
+        j.plan = Blueprint.camp();
+        j.progress = progress;
+        j.owner = "bandits";
+        j.signs = List.of("keep out|or else", "no trespassing", "turn back", "|private|");
+        j.chestItems = cfg.campLoot;
+        campWorld = w.getName();
+        return j;
+    }
+
+    /** Builds the hideout a chunk at a time while no real player is around to see it pop up. */
+    private void tickCamp() {
+        if (camp == null) {
+            if (cfg.campAuto && residents.running() && now >= nextCampTry) {
+                nextCampTry = now + 20 * 60 * 5;
+                findCamp();
+            }
+            return;
+        }
+        if (camp.progress >= camp.plan.size()) return;
+        int[] c = camp.at(3, 1, 2);
+        for (Player p : camp.w.getPlayers()) {
+            if (p.getAddress() != null && !residents.isResident(p) && !isBandit(p)
+                    && p.getLocation().distanceSquared(new Location(camp.w, c[0], c[1], c[2])) < 48 * 48) return;
+        }
+        if (!camp.w.isChunkLoaded(c[0] >> 4, c[2] >> 4)) camp.w.getChunkAt(c[0] >> 4, c[2] >> 4);
+        Homestead home = residents.homestead();
+        for (int i = 0; i < 60 && camp.progress < camp.plan.size(); i++) home.step(camp, null, true);
+        if (camp.progress >= camp.plan.size()) log.info("The bandit camp is up at " + camp.ox + " " + camp.oy + " " + camp.oz + ".");
+        saveCamp();
+    }
+
+    /** After a raid: more stolen loot in the camp chest (if nobody's cleared it out it just keeps piling up). */
+    private void stash() {
+        if (!campBuilt()) return;
+        int[] c = camp.at(3, 1, 3);
+        if (!(camp.w.getBlockAt(c[0], c[1], c[2]).getState(false) instanceof org.bukkit.block.Chest chest)) return;
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        org.bukkit.inventory.Inventory inv = chest.getBlockInventory();
+        for (String s : cfg.campLoot) {
+            String[] p = s.split(":");
+            Material m = Material.matchMaterial(p[0].trim());
+            if (m == null || !m.isItem()) continue;
+            int n = p.length > 1 ? dev.unstablesmp.Settings.IntRange.parse(p[1], new dev.unstablesmp.Settings.IntRange(1, 1)).random() : 1;
+            if (n <= 0) continue;
+            int slot = rnd.nextInt(inv.getSize());
+            if (inv.getItem(slot) == null) inv.setItem(slot, new ItemStack(m, Math.min(n, m.getMaxStackSize())));
+            else inv.addItem(new ItemStack(m, Math.min(n, m.getMaxStackSize())));
+        }
+    }
+
+    private void loadCamp() {
+        if (!file.isFile()) return;
+        org.bukkit.configuration.file.YamlConfiguration y = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+        if (!y.isConfigurationSection("camp")) return;
+        World w = Bukkit.getWorld(y.getString("camp.world", ""));
+        if (w == null) return;
+        camp = job(w, y.getInt("camp.x"), y.getInt("camp.y"), y.getInt("camp.z"), y.getInt("camp.rot"), y.getInt("camp.progress"));
+    }
+
+    private void saveCamp() {
+        org.bukkit.configuration.file.YamlConfiguration y = new org.bukkit.configuration.file.YamlConfiguration();
+        if (camp != null) {
+            y.set("camp.world", campWorld);
+            y.set("camp.x", camp.ox);
+            y.set("camp.y", camp.oy);
+            y.set("camp.z", camp.oz);
+            y.set("camp.rot", camp.rot);
+            y.set("camp.progress", camp.progress);
+        }
+        try {
+            file.getParentFile().mkdirs();
+            y.save(file);
+        } catch (java.io.IOException ex) {
+            log.warning("Couldn't save bandits.yml: " + ex);
+        }
     }
 
     // ------------------------------------------------------------------ gear

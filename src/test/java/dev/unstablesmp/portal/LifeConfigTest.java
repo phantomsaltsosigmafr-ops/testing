@@ -35,6 +35,17 @@ class LifeConfigTest {
         assertTrue(c.ggLines.contains("gG") && c.ggLines.contains("Gg"));
         assertEquals(-50, c.mineDepth.min());
         assertEquals(20, c.mineDepth.max());
+        assertTrue(c.activities.keySet().containsAll(java.util.List.of("road", "market", "nether")));
+        assertTrue(c.market && c.marketAtSpawn && c.marketStalls == 6);
+        assertTrue(c.trades.size() >= 10 && c.trades.stream().allMatch(t -> t.contains("->")));
+        assertTrue(c.netherLoot.contains("BLAZE_ROD:0-3"));
+        assertFalse(c.warsAuto);
+        assertEquals(4, c.warTnt);
+        assertEquals("vexbot attack {name} {target}", c.warAttack.get(0));
+        assertEquals("vexbot attack {name} {target}", c.defendCommands.get(0));
+        assertTrue(c.campAuto && c.campLoot.size() >= 5);
+        assertEquals(150, c.campDistance.min());
+        assertEquals(30, c.growMinutes);
     }
 
     @Test

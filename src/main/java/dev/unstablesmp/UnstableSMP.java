@@ -43,8 +43,13 @@ public final class UnstableSMP extends JavaPlugin {
         getServer().getPluginManager().registerEvents(totem, this);
         life = LifeConfig.load(getConfig());
         residents = new LifeDirector(getDataFolder(), getLogger(), life);
-        bandits = new BanditDirector(getLogger(), residents, life);
+        bandits = new BanditDirector(getDataFolder(), getLogger(), residents, life);
         getServer().getPluginManager().registerEvents(residents, this);
+        residents.nullSource(invasions::pouredBots, () -> {
+            java.util.List<org.bukkit.Location> out = new java.util.ArrayList<>();
+            for (dev.unstablesmp.portal.Invasion i : invasions.invasions()) out.add(new org.bukkit.Location(i.world, i.cx, i.cy, i.cz));
+            return out;
+        });
         UssCommand cmd = new UssCommand(this);
         var uss = Objects.requireNonNull(getCommand("uss"), "plugin.yml is missing the uss command");
         uss.setExecutor(cmd);
