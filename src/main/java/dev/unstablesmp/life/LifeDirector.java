@@ -263,12 +263,17 @@ public final class LifeDirector implements Listener {
         for (Resident r : residents.values()) {
             if (!r.online) continue;
             Resident leader = r.followLeader == null ? null : residents.get(r.followLeader);
+            boolean overriding = OVERRIDES.contains(r.activity);
             boolean following = leader != null && leader.online;
-            if (!following && now >= r.sessionEnd) {
+            if (!following && now >= r.sessionEnd && !overriding) {
                 leaveWithCrew(r);
                 continue;
             }
-            if (!following && now >= r.activityEnd) nextActivity(r);
+            if (now >= r.activityEnd) {
+                // a crew member back from defending/recovering/a war rejoins what the leader is doing
+                if (following && overriding) follow(r, leader);
+                else if (!following) nextActivity(r);
+            }
             Player p = Bukkit.getPlayerExact(r.name);
             if (p == null) continue;
             try {
@@ -434,13 +439,17 @@ public final class LifeDirector implements Listener {
 
     private void nextActivity(Resident r) {
         LifeConfig.Activity a = pickActivity(r);
+        if (a == null) a = cfg.activities.get("home"); // nothing else they can do: hang around the base
+        if (a == null) a = cfg.activities.get("afk");
         if (a == null) {
+            Player p = Bukkit.getPlayerExact(r.name);
+            if (r.inNether && p != null) returnFromNether(r, p);
             r.activityEnd = now + 20 * 60 * 5;
             return;
         }
         start(r, a, now + 20 * 60 * a.minutes().random(), null);
         for (Resident m : residents.values()) {
-            if (m.online && LifeUtil.key(r.name).equals(m.followLeader)) follow(m, r);
+            if (m.online && LifeUtil.key(r.name).equals(m.followLeader) && !OVERRIDES.contains(m.activity)) follow(m, r);
         }
     }
 
@@ -732,7 +741,7 @@ public final class LifeDirector implements Listener {
 
     /** What a chore puts in their hand (tools, building blocks, seeds): never kept as their own item. */
     private static boolean choreItem(Material m) {
-        return m == Material.IRON_AXE || m == Material.IRON_SHOVEL || m == Material.IRON_PICKAXE || m == Material.IRON_HOE
+        return m == Material.IRON_AXE || m == Material.FLINT_AND_STEEL || m == Material.IRON_SHOVEL || m == Material.IRON_PICKAXE || m == Material.IRON_HOE
                 || m == Material.WATER_BUCKET || m == Material.TORCH || m == Material.WHEAT_SEEDS || m == Material.BEETROOT_SEEDS
                 || m == Material.CARROT || m == Material.POTATO || m.name().endsWith("_SIGN") || (m.isBlock() && !m.isAir());
     }
@@ -860,25 +869,57 @@ public final class LifeDirector implements Listener {
         });
     }
 
-    /** Back at the death spot: picks their stuff back up. */
+    /** Back where they died: goes after each of their dropped items (they scatter, float and roll) and picks it up. */
     private void recoverChore(Resident r, Player p) {
         if (now < r.nextChoreAt) return;
-        r.nextChoreAt = now + 20;
+        r.nextChoreAt = now + 10;
         Location d = r.death;
         if (d == null || d.getWorld() != p.getWorld()) {
             r.activityEnd = now;
             return;
         }
-        if (p.getLocation().distanceSquared(d) > 4 * 4 && !stuck(r)) {
+        org.bukkit.entity.Item nearest = null;
+        double best = Double.MAX_VALUE;
+        for (Entity e : d.getWorld().getNearbyEntities(d, 12, 12, 12)) {
+            if (!(e instanceof org.bukkit.entity.Item item) || !item.isValid()) continue;
+            double dist = item.getLocation().distanceSquared(p.getLocation());
+            if (dist < best) {
+                best = dist;
+                nearest = item;
+            }
+        }
+        if (nearest == null) {
+            if (p.getLocation().distanceSquared(d) > 6 * 6 && !stuck(r)) {
+                // not there yet: the items may be in unloaded/unseen spots, walk over first
+                if (r.stuckSince == 0) r.stuckSince = now;
+                if (now >= r.gotoAt) {
+                    LifeUtil.run(cfg.moveCommands, values(r, d.getBlockX(), d.getBlockY(), d.getBlockZ()), log);
+                    r.gotoAt = now + 200;
+                }
+                return;
+            }
+            r.death = null; // all picked up (or gone)
+            r.activityEnd = now + 40;
+            return;
+        }
+        if (best > 3 * 3 && !stuck(r)) {
             if (r.stuckSince == 0) r.stuckSince = now;
             if (now >= r.gotoAt) {
-                LifeUtil.run(cfg.moveCommands, values(r, d.getBlockX(), d.getBlockY(), d.getBlockZ()), log);
-                r.gotoAt = now + 200;
+                int[] at = standNear(nearest.getLocation());
+                LifeUtil.run(cfg.moveCommands, values(r, at[0], at[1], at[2]), log);
+                r.gotoAt = now + 100;
             }
             return;
         }
+        if (best > 6 * 6) {
+            r.death = null; // can't get to it: they give up on the rest
+            r.activityEnd = now + 40;
+            return;
+        }
+        r.stuckSince = 0;
+        r.gotoAt = now;
         int got = 0;
-        for (Entity e : d.getWorld().getNearbyEntities(d, 5, 4, 5)) {
+        for (Entity e : p.getWorld().getNearbyEntities(p.getLocation(), 4, 4, 4)) {
             if (e instanceof org.bukkit.entity.Item item && item.isValid()) {
                 Homestead.give(p, List.of(item.getItemStack()));
                 item.remove();
@@ -889,8 +930,22 @@ public final class LifeDirector implements Listener {
             p.swingMainHand();
             p.getWorld().playSound(p.getLocation(), org.bukkit.Sound.ENTITY_ITEM_PICKUP, 0.6f, 1f);
         }
-        r.death = null;
-        r.activityEnd = now + 40;
+    }
+
+    /** A spot a player can stand in at or next to {@code l} (the item may sit on a slab, in a plant, on water…). */
+    private static int[] standNear(Location l) {
+        World w = l.getWorld();
+        int x = l.getBlockX(), y = l.getBlockY(), z = l.getBlockZ();
+        for (int[] o : new int[][] {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}}) {
+            for (int dy = 0; dy >= -2; dy--) {
+                Block b = w.getBlockAt(x + o[0], y + dy, z + o[1]);
+                if (b.isPassable() && b.getRelative(0, 1, 0).isPassable() && (b.getRelative(0, -1, 0).getType().isSolid() || b.getRelative(0, -1, 0).isLiquid()))
+                    return new int[] {b.getX(), b.getY(), b.getZ()};
+            }
+            Block up = w.getBlockAt(x + o[0], y + 1, z + o[1]);
+            if (up.isPassable() && up.getRelative(0, 1, 0).isPassable() && up.getRelative(0, -1, 0).getType().isSolid()) return new int[] {up.getX(), up.getY(), up.getZ()};
+        }
+        return new int[] {x, y, z};
     }
 
     // ------------------------------------------------------------------ roads
@@ -996,34 +1051,65 @@ public final class LifeDirector implements Listener {
         return Math.floorMod(r.name.hashCode(), cfg.marketStalls);
     }
 
+    /** Stall {@code index}'s build job, or null if there's no free spot for it (never on anyone's build or water). */
     private Homestead.Job stallJob(int index) {
-        return stalls.computeIfAbsent(index, i -> {
-            Location c = marketCentre();
-            double ang = Math.PI * 2 * i / cfg.marketStalls;
-            int x = c.getBlockX() + (int) Math.round(Math.cos(ang) * cfg.marketRadius);
-            int z = c.getBlockZ() + (int) Math.round(Math.sin(ang) * cfg.marketRadius);
+        if (stalls.containsKey(index)) return stalls.get(index);
+        Location c = marketCentre();
+        Homestead.Job found = null;
+        // try its place in the ring, then nudged around and a bit further out
+        for (int attempt = 0; attempt < 12 && found == null; attempt++) {
+            double ang = Math.PI * 2 * index / cfg.marketStalls + (attempt % 4 - 1.5) * 0.12 * (attempt / 4 + 1);
+            int rad = cfg.marketRadius + (attempt / 4) * 3;
+            int x = c.getBlockX() + (int) Math.round(Math.cos(ang) * rad);
+            int z = c.getBlockZ() + (int) Math.round(Math.sin(ang) * rad);
             Homestead.Job j = new Homestead.Job();
             j.w = c.getWorld();
             int g = LifeUtil.ground(j.w, x, z);
+            if (g == Integer.MIN_VALUE) continue;
             j.ox = x;
-            j.oy = g == Integer.MIN_VALUE ? c.getBlockY() : g;
+            j.oy = g;
             j.oz = z;
             j.rot = Homestead.facingRotation(x, z, c.getBlockX(), c.getBlockZ());
-            j.plan = Blueprint.stall(cfg.woods.get(i % cfg.woods.size()), cfg.stallColours.get(i % cfg.stallColours.size()));
-            return j;
-        });
+            j.plan = Blueprint.stall(cfg.woods.get(index % cfg.woods.size()), cfg.stallColours.get(index % cfg.stallColours.size()));
+            if (stallSiteOk(j) || stallStanding(j)) found = j;
+        }
+        stalls.put(index, found);
+        return found;
+    }
+
+    /** Free ground: no build, no water, roughly level, nothing else's stall. */
+    private boolean stallSiteOk(Homestead.Job j) {
+        for (int lx = -1; lx <= 3; lx++) {
+            for (int lz = -1; lz <= 3; lz++) {
+                int[] c = j.at(lx, 0, lz);
+                int g = LifeUtil.ground(j.w, c[0], c[2]);
+                if (g == Integer.MIN_VALUE || Math.abs(g - j.oy) > 2) return false;
+                for (int y = j.oy - 1; y <= j.oy + 5; y++) if (Homestead.manMade(j.w.getBlockAt(c[0], y, c[2]))) return false;
+            }
+        }
+        return true;
+    }
+
+    /** Our own stall is already there (after a restart): its counter barrels stand where the plan says. */
+    private boolean stallStanding(Homestead.Job j) {
+        int[] c = j.at(1, 1, 0);
+        return j.w.getBlockAt(c[0], c[1], c[2]).getType() == Material.BARREL;
     }
 
     private int[] stallSpot(int index) {
         if (index < 0) return null;
         Homestead.Job j = stallJob(index);
-        return j.at(1, 1, 1);
+        return j == null ? null : j.at(1, 1, 1);
     }
 
     /** Puts their stall up if it isn't there yet, then stands behind the counter. */
     private void marketChore(Resident r, Player p) {
         if (now < r.nextChoreAt || r.stall < 0) return;
         Homestead.Job j = stallJob(r.stall);
+        if (j == null) {
+            r.activityEnd = now; // no room for a stall: do something else
+            return;
+        }
         int[] spot = j.at(1, 1, 1);
         double dx = p.getX() - (spot[0] + 0.5), dz = p.getZ() - (spot[2] + 0.5);
         boolean there = dx * dx + dz * dz < 6 * 6 && p.getWorld() == j.w;

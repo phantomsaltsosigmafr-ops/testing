@@ -662,9 +662,14 @@ final class Homestead {
     }
 
     static void give(Player p, List<ItemStack> items) {
+        org.bukkit.inventory.PlayerInventory inv = p.getInventory();
+        int held = inv.getHeldItemSlot();
+        boolean emptyHand = inv.getItem(held) == null || inv.getItem(held).getType().isAir();
+        if (emptyHand) inv.setItem(held, new ItemStack(Material.BARRIER)); // keep loot out of their hand
         for (ItemStack it : items) {
-            Map<Integer, ItemStack> left = p.getInventory().addItem(it);
+            Map<Integer, ItemStack> left = inv.addItem(it);
             for (ItemStack l : left.values()) p.getWorld().dropItemNaturally(p.getLocation(), l);
         }
+        if (emptyHand) inv.setItem(held, null);
     }
 }
