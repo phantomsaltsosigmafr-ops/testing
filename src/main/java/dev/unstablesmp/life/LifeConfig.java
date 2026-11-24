@@ -47,6 +47,23 @@ public final class LifeConfig {
     public final Settings.IntRange oreHopSeconds;
     public final List<Hotspot> hotspots;
 
+    // ---- bases and chores
+    public final boolean bases;
+    public final List<String> woods;
+    public final List<String> crops;
+    public final List<String> bedColours;
+    public final Settings.IntRange buildTicks;
+    public final List<String> signs;
+    public final List<String> starterItems;
+    public final boolean sleep;
+    public final List<String> huntCommands;
+    public final List<String> moveCommands;
+    public final int huntRange;
+
+    // ---- server list
+    public final boolean listBots;
+    public final int hoverSize;
+
     public final List<String> setupCommands;
     public final List<String> joinCommands;
     public final List<String> afterJoinCommands;
@@ -119,12 +136,30 @@ public final class LifeConfig {
             }
         }
 
+        ConfigurationSection bs = section(c, "bases");
+        bases = bs.getBoolean("enabled", true);
+        woods = orDefault(bs.getStringList("woods"), List.of("oak", "spruce", "birch", "dark_oak"));
+        crops = orDefault(bs.getStringList("crops"), List.of("wheat", "carrots", "potatoes"));
+        bedColours = orDefault(bs.getStringList("bed-colours"), List.of("red", "white", "blue", "light_gray", "green"));
+        buildTicks = Settings.IntRange.parse(bs.get("build-ticks"), new Settings.IntRange(12, 24));
+        signs = orDefault(bs.getStringList("signs"), List.of("{name}'s base"));
+        starterItems = bs.getStringList("starter-items");
+        sleep = bs.getBoolean("sleep-at-night", true);
+        huntRange = Math.max(8, c.getInt("hunt-range", 40));
+
+        ConfigurationSection sl = section(root, "server-list");
+        listBots = sl.getBoolean("show-bots", true);
+        hoverSize = Math.max(0, Math.min(40, sl.getInt("hover-size", 12)));
+
         ConfigurationSection cmd = section(c, "commands");
         setupCommands = commands(cmd.getStringList("setup"));
         joinCommands = commands(cmd.getStringList("join"));
         afterJoinCommands = commands(cmd.getStringList("after-join"));
         leaveCommands = commands(cmd.getStringList("leave"));
         oreCommands = commands(cmd.getStringList("next-ore"));
+        huntCommands = commands(cmd.getStringList("hunt"));
+        List<String> move = commands(cmd.getStringList("move"));
+        moveCommands = move.isEmpty() ? List.of("vexbot goto {name} {x} {y} {z}") : move;
 
         activities = new LinkedHashMap<>();
         ConfigurationSection ac = c.getConfigurationSection("activities");
@@ -132,8 +167,7 @@ public final class LifeConfig {
             for (String id : ac.getKeys(false)) {
                 ConfigurationSection a = ac.getConfigurationSection(id);
                 if (a == null) continue;
-                int weight = Math.max(0, a.getInt("weight", 1));
-                if (weight == 0) continue;
+                int weight = Math.max(0, a.getInt("weight", 1)); // 0 = never picked at random (e.g. sleep)
                 activities.put(id.toLowerCase(Locale.ROOT), new Activity(id.toLowerCase(Locale.ROOT), weight,
                         Settings.IntRange.parse(a.get("minutes"), new Settings.IntRange(5, 15)), commands(a.getStringList("commands"))));
             }
@@ -191,6 +225,10 @@ public final class LifeConfig {
             if (roll < 0) return i + 1;
         }
         return 1;
+    }
+
+    private static List<String> orDefault(List<String> v, List<String> fallback) {
+        return v == null || v.isEmpty() ? fallback : v;
     }
 
     private static int[] weights(ConfigurationSection s, String[] keys, int[] fallback) {

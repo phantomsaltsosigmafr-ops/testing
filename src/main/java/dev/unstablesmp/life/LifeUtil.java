@@ -30,10 +30,19 @@ final class LifeUtil {
         }
     }
 
-    /** Surface y (the top solid block) at x, z, loading the chunk if needed; MIN_VALUE over water/lava or the void. */
+    /**
+     * The ground's y at x, z (the top block you'd stand on, under any tree trunks, leaves or plants), loading the chunk
+     * if needed; MIN_VALUE over water/lava or the void.
+     */
     static int ground(World w, int x, int z) {
         w.getChunkAt(x >> 4, z >> 4);
         int y = w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+        while (y > w.getMinHeight() + 1) {
+            Material m = w.getBlockAt(x, y, z).getType();
+            if (!(m.isAir() || org.bukkit.Tag.LOGS.isTagged(m) || org.bukkit.Tag.LEAVES.isTagged(m) || org.bukkit.Tag.REPLACEABLE.isTagged(m)
+                    || org.bukkit.Tag.FLOWERS.isTagged(m) || org.bukkit.Tag.SAPLINGS.isTagged(m))) break;
+            y--;
+        }
         if (y <= w.getMinHeight() + 1 || w.getBlockAt(x, y, z).isLiquid()) return Integer.MIN_VALUE;
         return y;
     }

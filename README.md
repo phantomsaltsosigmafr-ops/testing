@@ -59,17 +59,27 @@ The totem knows which bots came out of the portals. That's anything new (mobs, o
 
 ## Residents (player-like bots)
 
-`/uss residents on` brings VexBot bots to life as server regulars. As VexBot fake players they show in tab and the player list.
+`/uss residents on` brings VexBot bots to life as server regulars. As VexBot fake players they show in tab, in the player list and on the server list.
 
 - **Sessions:** a few log on and off through the day, with more during peak hours. Each stays 20–90 minutes, then rests 10–45 minutes before coming back.
-- **Crews:** players come on solo, as duos, trios or 4-player squads (weights in `residents.crews`). A crew shares a base, logs on within a few seconds of each other, does the same things together and logs off together. Crews stay the same between restarts.
-- **Homes:** each player keeps the same home in `residents.yml`. `/uss residents sethome <name>` moves one.
-- **Activities** (weighted, configurable):
-  - `home`: hanging around their base
-  - `mine`: **goes after real ore near home**. It finds a vein (coal, iron, redstone, diamonds… any `*_ORE`) and works through it ore by ore, tunnelling there with VexBot's goto, which mines its way.
-  - `visit`: walks to a hotspot you list
-  - `explore`: heads off somewhere
-  - `afk`
+- **Crews:** players come on solo, as duos, trios or 4-player squads. A crew shares a base, logs on together, does things together and logs off together. Crews stay the same between restarts.
+- **Their own base:** each solo player or crew finds a natural plot (never on anyone's build) and builds a starter base block by block, holding the block, swinging and making the right sounds:
+  - the plot is cleared and levelled
+  - a log-and-plank house: windows, a gable roof, a door, a bed each, a double chest (with some starter items), a furnace, a crafting table, torches, and a sign ("Kxlvinn's base", "keep out", "no griefing pls"…)
+  - a fenced farm with a gate, water and wheat, carrots, potatoes or beetroot
+  - the wood type, crop and bed colour are random per base
+  - bases stay in the world, and building picks up where it left off after a restart
+- **Bed and spawn:** their spawn point is set in their bed, and at night (or in a thunderstorm) they go to bed and sleep.
+- **Doors, gates, beds, chests:** VexBot's wander has them walk in and out of houses, open doors and fence gates, and visit beds, chests and crafting tables.
+- **Activities** (weighted in `residents.activities`):
+  - `build`: mostly this until the base is done
+  - `home`: hanging around the base, and putting loot away in the chest (ores, logs, stone, crops, mob drops; never their gear) and sorting it
+  - `mine`: goes after real ore near home, vein by vein
+  - `woodcut`: chops down a real tree near home with an axe, and sometimes replants a sapling
+  - `farm`: harvests ripe crops and replants
+  - `hunt`: goes after cows, pigs, sheep, chickens and rabbits
+  - `visit`, `explore`, `afk`, and `sleep` at night
+- **Server list:** bots count in the player number and show in the hover list. Minecraft normally leaves fake players out of the hover list; the `server-list` section fixes that.
 
 ## Bandits
 
@@ -132,7 +142,7 @@ You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 dura
 ## Build
 
 ```bash
-./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.3.0.jar
+./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.4.0.jar
 ./gradlew runServer  # local Paper 1.21.11 test server
 ```
 
@@ -143,7 +153,7 @@ GitHub Actions (`.github/workflows/release.yml`) builds every push. Pushes to th
 If `/plugins` doesn't list UnstableSMP:
 1. Make sure the jar in `plugins/` is about **70 KB** and ends in `.jar`. A tiny file means the download saved a web page instead; upload it with your host's file manager.
 2. Remove any older UnstableSMP jar, because two jars with the same plugin name clash.
-3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.3.0`, or a red error line explaining why it couldn't.
+3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.4.0`, or a red error line explaining why it couldn't.
 
 ## Tested
 

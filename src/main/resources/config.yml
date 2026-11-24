@@ -90,6 +90,21 @@ residents:
   ores: [all]                # which blocks count as ore ("all" = every *_ORE), e.g. [DIAMOND_ORE, DEEPSLATE_DIAMOND_ORE, IRON_ORE]
   ore-hop-seconds: 20-40     # time spent on each ore before moving to the next one in the vein
   hotspots: {}               # places they visit, e.g.  spawn: {x: 0, y: 70, z: 0}   shop: {x: 120, y: 68, z: -40}
+  hunt-range: 40             # hunting trips go after cows, pigs, sheep, chickens and rabbits this close
+  # Bases: each solo player or crew builds a starter base on a natural, fairly flat plot: they clear and level it, then
+  # put up a log-and-plank house (windows, gable roof, door, a bed each, double chest, furnace, crafting table,
+  # torches, a sign) and a fenced farm with water and crops - block by block, holding the block and swinging.
+  # They set their spawn in their bed and sleep there at night. Bases stay (they're part of the world).
+  bases:
+    enabled: true
+    woods: [oak, spruce, birch, dark_oak]
+    crops: [wheat, carrots, potatoes, beetroots]
+    bed-colours: [red, white, blue, light_gray, green, yellow, cyan, brown]
+    build-ticks: 12-24       # time per block while building (20 = 1 second)
+    sleep-at-night: true
+    signs: ["{name}'s base", "{name}|keep out", "no griefing|pls", "home sweet|home", "{name}'s|house", "do not|enter"]
+    starter-items: ["COBBLESTONE:16-64", "OAK_LOG:4-16", "COAL:3-12", "BREAD:2-8", "WHEAT_SEEDS:4-16", "IRON_INGOT:1-6",
+                    "TORCH:4-16", "STICK:4-12", "RAW_IRON:1-8", "APPLE:1-4"]
   # VexBot commands. Placeholders: {name} {x} {y} {z} (where they're going) {hx} {hy} {hz} (home) {radius} {world}
   commands:
     setup:                   # once, when residents switch on
@@ -110,10 +125,34 @@ residents:
       - "vexbot wander {name} {radius} {hx} {hy} {hz}"
     next-ore:                # mining: on to the next ore of the vein (goto mines its way there)
       - "vexbot goto {name} {x} {y} {z}"
+    move:                    # walking to a chore (the next block to build, a tree, the farm, the chest, bed)
+      - "vexbot goto {name} {x} {y} {z}"
+    hunt:                    # {target} = the animal's UUID
+      - "vexbot attack {name} {target}"
     leave:
       - "vexbot kill {name}"
   activities:                # what they do while online (weight = how often, minutes = how long). Crews do it together.
-    home:
+    build:                   # while their base isn't finished they mostly do this
+      weight: 6
+      minutes: 4-8
+      commands: ["vexbot goto {name} stop", "vexbot wander {name} 6 {x} {y} {z}"]
+    farm:                    # harvest and replant the farm (once the base is built)
+      weight: 2
+      minutes: 2-5
+      commands: ["vexbot wander {name} stop", "vexbot goto {name} {x} {y} {z}"]
+    woodcut:                 # chop down a real tree near home, sometimes replant it
+      weight: 2
+      minutes: 3-6
+      commands: ["vexbot wander {name} stop", "vexbot goto {name} {x} {y} {z}"]
+    hunt:
+      weight: 1
+      minutes: 2-4
+      commands: ["vexbot wander {name} stop"]
+    sleep:                   # picked automatically at night once they have a bed
+      weight: 0
+      minutes: 1-1
+      commands: ["vexbot goto {name} stop", "vexbot wander {name} stop"]
+    home:                    # hang around the base; puts loot away in the chest, sorted
       weight: 5
       minutes: 8-20
       commands: ["vexbot goto {name} stop", "vexbot wander {name} {radius} {hx} {hy} {hz}"]
@@ -174,6 +213,12 @@ bandits:
       - "vexbot goto {name} {x} {y} {z}"
     leave:
       - "vexbot kill {name}"
+
+# The server list: bots count in the player number and show in the hover list (Minecraft leaves fake players out of
+# the hover list by default).
+server-list:
+  show-bots: true
+  hover-size: 12
 
 # /uss gg: every bot online types a gg over a few seconds (some twice), e.g. after an event.
 gg:

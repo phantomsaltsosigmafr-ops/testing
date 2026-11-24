@@ -211,7 +211,7 @@ public final class UssCommand implements TabExecutor {
                     return;
                 }
                 Location l = p.getLocation();
-                life.setHome(args[1], p.getWorld(), l.getBlockX(), l.getBlockY(), l.getBlockZ());
+                life.setHome(args[1], p.getWorld(), l.getBlockX(), l.getBlockY(), l.getBlockZ(), l.getYaw());
                 msg(sender, "residents-home", Text.ph("player", args[1]));
             }
             default -> {
