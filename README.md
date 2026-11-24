@@ -59,26 +59,31 @@ The totem knows which bots came out of the portals. That's anything new (mobs, o
 
 ## Residents (player-like bots)
 
-`/uss residents on` brings VexBot bots to life as server regulars.
+`/uss residents on` brings VexBot bots to life as server regulars. As VexBot fake players they show in tab and the player list.
 
-- **Sessions:** a few log on and off through the day, with more during peak hours (`population`, `peak-population`, `peak-hours`). Each stays 20–90 minutes.
-- **Homes:** each bot gets its own home the first time it plays and keeps it in `residents.yml`, so regulars come back to the same base. `/uss residents sethome <name>` moves one.
+- **Sessions:** a few log on and off through the day, with more during peak hours. Each stays 20–90 minutes, then rests 10–45 minutes before coming back.
+- **Crews:** players come on solo, as duos, trios or 4-player squads (weights in `residents.crews`). A crew shares a base, logs on within a few seconds of each other, does the same things together and logs off together. Crews stay the same between restarts.
+- **Homes:** each player keeps the same home in `residents.yml`. `/uss residents sethome <name>` moves one.
 - **Activities** (weighted, configurable):
   - `home`: hanging around their base
-  - `mine`: tunnelling down near home
-  - `visit`: walking to a hotspot you list
-  - `explore`: heading off somewhere
+  - `mine`: **goes after real ore near home**. It finds a vein (coal, iron, redstone, diamonds… any `*_ORE`) and works through it ore by ore, tunnelling there with VexBot's goto, which mines its way.
+  - `visit`: walks to a hotspot you list
+  - `explore`: heads off somewhere
   - `afk`
-- **Chat:** they greet when they log on, say "gtg"/"cya" when they leave, welcome real players ("wb Steve", "welcome Steve"), and drop an occasional line ("anyone got iron"). The bot types it itself, so your chat plugin formats it like a real player's. At most one idle line every 45 seconds across all bots.
-- **Server list:** bots are left out of the player count and hover list, so it shows real players only. Turn this off with `residents.hide-from-server-list`.
 
-The VexBot commands it runs are all in `residents.commands` and `activities`: spawn, team join, wander, goto, kill. Edit them to match your VexBot version.
+## Bandits
 
-Tested with real test clients standing in for the bots:
-- Residents joined a few seconds apart at their own homes and greeted.
-- They went on mining trips and welcomed a new player.
-- They logged off with a goodbye, and regulars came back to the same home.
-- Over 12 server-list pings the list only ever showed the real player.
+Small groups of broke players (1–4 at a time) who jump a real player:
+1. They log on 30–55 blocks away a few seconds apart.
+2. Each gets random scraps: bits of leather, chain or iron, a wooden or stone sword or axe, and a little food.
+3. They go after the player.
+4. When the player dies or leaves, or after a few minutes, they run off and log off one by one.
+
+Automatic raids happen every 10–25 minutes while residents are on. They never target someone near spawn, and the same player isn't jumped again for 15 minutes. `/uss bandits raid <player> [size]` starts one right now, which is handy for filming.
+
+## GG wave
+
+`/uss gg` makes every bot online (residents, bandits and VexBot's own fake players) type a gg over a few seconds: GG, gg, gG, Gg, ggs, gg wp… Some send two. Put `uss gg` in `invasion.end-commands` to have it happen after every invasion.
 
 ## Commands
 
@@ -95,6 +100,8 @@ All commands use the `uss.admin` permission (default: op). They work from player
 | `/uss status` | Running invasions: portals, bots poured, alive |
 | `/uss residents on\|off\|status` | Player-like bots living on the server (see Residents) |
 | `/uss residents sethome <name>` | Move a resident's home to where you stand |
+| `/uss bandits raid <player> [size]` | Bandits jump that player now; `on`/`off` for automatic raids, `stop` calls raids off |
+| `/uss gg` | Every bot spams gg |
 | `/uss reload` | Reload `config.yml` |
 
 You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 duration=180 chance=0.4`:
@@ -125,7 +132,7 @@ You can add options to `/uss start`, e.g. `/uss start radius=60 portals=100 dura
 ## Build
 
 ```bash
-./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.2.0.jar
+./gradlew build      # compiles, runs the tests, writes build/libs/UnstableSMP-4.3.0.jar
 ./gradlew runServer  # local Paper 1.21.11 test server
 ```
 
@@ -136,7 +143,7 @@ GitHub Actions (`.github/workflows/release.yml`) builds every push. Pushes to th
 If `/plugins` doesn't list UnstableSMP:
 1. Make sure the jar in `plugins/` is about **70 KB** and ends in `.jar`. A tiny file means the download saved a web page instead; upload it with your host's file manager.
 2. Remove any older UnstableSMP jar, because two jars with the same plugin name clash.
-3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.2.0`, or a red error line explaining why it couldn't.
+3. Fully restart the server. The console then shows `[UnstableSMP] Enabling UnstableSMP v4.3.0`, or a red error line explaining why it couldn't.
 
 ## Tested
 

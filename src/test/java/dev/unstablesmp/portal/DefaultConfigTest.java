@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 
 class DefaultConfigTest {
     private static final List<String> PLACEHOLDERS = List.of("portals", "seconds", "spawned", "radius",
-            "x", "y", "z", "world", "count", "id", "phase", "option", "player", "command", "alive");
+            "x", "y", "z", "world", "count", "id", "phase", "option", "player", "command", "alive", "names", "target");
 
     private static YamlConfiguration config() {
         var in = Objects.requireNonNull(DefaultConfigTest.class.getClassLoader().getResourceAsStream("config.yml"));

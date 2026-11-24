@@ -10,8 +10,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.MemoryConfiguration;
 
 /**
- * The {@code residents:} section of config.yml: how the player-like VexBot population behaves. Pure parsing (no server
- * needed), so it is unit tested.
+ * The {@code residents:}, {@code bandits:} and {@code gg:} sections of config.yml. Pure parsing (no server needed), so
+ * it is unit tested.
  */
 public final class LifeConfig {
 
@@ -23,6 +23,7 @@ public final class LifeConfig {
     public record Hotspot(String name, String world, int x, int y, int z) {
     }
 
+    // ---- residents
     public final boolean autoStart;
     public final Settings.IntRange population;
     public final Settings.IntRange peakPopulation;
@@ -30,6 +31,9 @@ public final class LifeConfig {
     public final int peakTo;
     public final Settings.IntRange sessionMinutes;
     public final Settings.IntRange joinGapSeconds;
+    public final Settings.IntRange restMinutes;
+    /** Weights for crews of 1, 2, 3 and 4. */
+    public final int[] crewWeights;
     public final List<String> names;
 
     public final String homeWorld;
@@ -39,42 +43,58 @@ public final class LifeConfig {
     public final Settings.IntRange homeDistance;
     public final int homeRadius;
     public final Settings.IntRange mineDepth;
+    public final List<String> ores;
+    public final Settings.IntRange oreHopSeconds;
     public final List<Hotspot> hotspots;
 
     public final List<String> setupCommands;
     public final List<String> joinCommands;
     public final List<String> afterJoinCommands;
     public final List<String> leaveCommands;
+    public final List<String> oreCommands;
     public final Map<String, Activity> activities;
 
-    public final boolean chat;
-    public final Settings.IntRange chatDelaySeconds;
-    public final double greetChance;
-    public final double byeChance;
-    public final double welcomeChance;
-    public final double idleChancePerMinute;
-    public final List<String> greetings;
-    public final List<String> goodbyes;
-    public final List<String> welcomes;
-    public final List<String> welcomesNew;
-    public final List<String> idle;
+    // ---- bandits
+    public final boolean banditsAuto;
+    public final Settings.IntRange raidEveryMinutes;
+    /** Weights for bandit groups of 1, 2, 3 and 4. */
+    public final int[] banditGroupWeights;
+    public final Settings.IntRange banditSpawnDistance;
+    public final Settings.IntRange raidMinutes;
+    public final int safeRadius;
+    public final int playerCooldownMinutes;
+    public final List<String> banditNames;
+    /** Armour tier weights: none, leather, chainmail, iron. */
+    public final int[] armourWeights;
+    public final double armourPieceChance;
+    public final List<String> weapons;
+    public final List<String> food;
+    public final Settings.IntRange foodAmount;
+    public final List<String> banditSetup;
+    public final List<String> banditJoin;
+    public final List<String> banditAfterJoin;
+    public final List<String> banditAttack;
+    public final List<String> banditFlee;
+    public final List<String> banditLeave;
 
-    public final boolean hideFromServerList;
+    // ---- gg wave
+    public final List<String> ggLines;
+    public final int ggSpreadTicks;
+    public final double ggDoubleChance;
 
-    private LifeConfig(ConfigurationSection c) {
+    private LifeConfig(ConfigurationSection root) {
+        ConfigurationSection c = section(root, "residents");
         autoStart = c.getBoolean("auto-start", false);
-        population = Settings.IntRange.parse(c.get("population"), new Settings.IntRange(2, 4));
-        peakPopulation = Settings.IntRange.parse(c.get("peak-population"), new Settings.IntRange(4, 7));
+        population = Settings.IntRange.parse(c.get("population"), new Settings.IntRange(3, 6));
+        peakPopulation = Settings.IntRange.parse(c.get("peak-population"), new Settings.IntRange(6, 10));
         int[] peak = startEnd(c.get("peak-hours"), 16, 23);
         peakFrom = Math.floorMod(peak[0], 24);
         peakTo = Math.floorMod(peak[1], 24);
         sessionMinutes = Settings.IntRange.parse(c.get("session-minutes"), new Settings.IntRange(20, 90));
         joinGapSeconds = Settings.IntRange.parse(c.get("join-gap-seconds"), new Settings.IntRange(45, 300));
-        names = new ArrayList<>();
-        for (String n : c.getStringList("names")) {
-            String t = n.trim();
-            if (t.matches("[A-Za-z0-9_]{3,16}") && !names.contains(t)) names.add(t);
-        }
+        restMinutes = Settings.IntRange.parse(c.get("rest-minutes"), new Settings.IntRange(10, 45));
+        crewWeights = weights(section(c, "crews"), new String[] {"solo", "duo", "trio", "squad"}, new int[] {50, 30, 15, 5});
+        names = names(c.getStringList("names"));
 
         ConfigurationSection h = section(c, "homes");
         homeWorld = h.getString("world", "");
@@ -86,6 +106,8 @@ public final class LifeConfig {
         homeDistance = Settings.IntRange.parse(h.get("distance"), new Settings.IntRange(60, 400));
         homeRadius = Math.max(3, h.getInt("wander-radius", 12));
         mineDepth = Settings.IntRange.parse(h.get("mine-y"), new Settings.IntRange(-50, 20));
+        ores = c.getStringList("ores");
+        oreHopSeconds = Settings.IntRange.parse(c.get("ore-hop-seconds"), new Settings.IntRange(20, 40));
 
         hotspots = new ArrayList<>();
         ConfigurationSection hs = c.getConfigurationSection("hotspots");
@@ -102,6 +124,7 @@ public final class LifeConfig {
         joinCommands = commands(cmd.getStringList("join"));
         afterJoinCommands = commands(cmd.getStringList("after-join"));
         leaveCommands = commands(cmd.getStringList("leave"));
+        oreCommands = commands(cmd.getStringList("next-ore"));
 
         activities = new LinkedHashMap<>();
         ConfigurationSection ac = c.getConfigurationSection("activities");
@@ -116,30 +139,77 @@ public final class LifeConfig {
             }
         }
 
-        ConfigurationSection ch = section(c, "chat");
-        chat = ch.getBoolean("enabled", true);
-        chatDelaySeconds = Settings.IntRange.parse(ch.get("delay-seconds"), new Settings.IntRange(2, 7));
-        greetChance = chance(ch, "greet-chance", 0.45);
-        byeChance = chance(ch, "bye-chance", 0.35);
-        welcomeChance = chance(ch, "welcome-chance", 0.4);
-        idleChancePerMinute = chance(ch, "idle-chance-per-minute", 0.04);
-        greetings = ch.getStringList("greetings");
-        goodbyes = ch.getStringList("goodbyes");
-        welcomes = ch.getStringList("welcome-back");
-        welcomesNew = ch.getStringList("welcome-new");
-        idle = ch.getStringList("idle");
+        ConfigurationSection b = section(root, "bandits");
+        banditsAuto = b.getBoolean("auto", true);
+        raidEveryMinutes = Settings.IntRange.parse(b.get("raid-every-minutes"), new Settings.IntRange(10, 25));
+        banditGroupWeights = weights(section(b, "group"), new String[] {"solo", "duo", "trio", "squad"}, new int[] {30, 40, 25, 5});
+        banditSpawnDistance = Settings.IntRange.parse(b.get("spawn-distance"), new Settings.IntRange(30, 55));
+        raidMinutes = Settings.IntRange.parse(b.get("raid-minutes"), new Settings.IntRange(3, 6));
+        safeRadius = Math.max(0, b.getInt("safe-radius", 48));
+        playerCooldownMinutes = Math.max(0, b.getInt("player-cooldown-minutes", 15));
+        banditNames = names(b.getStringList("names"));
+        ConfigurationSection gear = section(b, "gear");
+        armourWeights = weights(section(gear, "armour"), new String[] {"none", "leather", "chainmail", "iron"}, new int[] {4, 4, 2, 1});
+        armourPieceChance = Math.max(0, Math.min(1, gear.getDouble("piece-chance", 0.6)));
+        weapons = gear.getStringList("weapons");
+        food = gear.getStringList("food");
+        foodAmount = Settings.IntRange.parse(gear.get("food-amount"), new Settings.IntRange(2, 6));
+        ConfigurationSection bc = section(b, "commands");
+        banditSetup = commands(bc.getStringList("setup"));
+        banditJoin = commands(bc.getStringList("join"));
+        banditAfterJoin = commands(bc.getStringList("after-join"));
+        banditAttack = commands(bc.getStringList("attack"));
+        banditFlee = commands(bc.getStringList("flee"));
+        banditLeave = commands(bc.getStringList("leave"));
 
-        hideFromServerList = c.getBoolean("hide-from-server-list", true);
+        ConfigurationSection gg = section(root, "gg");
+        List<String> lines = gg.getStringList("lines");
+        ggLines = lines.isEmpty() ? List.of("GG", "gg", "gG", "Gg") : lines;
+        ggSpreadTicks = Math.max(1, (int) Math.round(gg.getDouble("spread-seconds", 4) * 20));
+        ggDoubleChance = Math.max(0, Math.min(1, gg.getDouble("double-chance", 0.25)));
     }
 
-    public static LifeConfig load(ConfigurationSection c) {
-        return new LifeConfig(c == null ? new MemoryConfiguration() : c);
+    /** Loads from the config root (the residents/bandits/gg sections). */
+    public static LifeConfig load(ConfigurationSection root) {
+        return new LifeConfig(root == null ? new MemoryConfiguration() : root);
     }
 
     /** Whether {@code hour} (0-23) falls in the peak window (which may wrap past midnight, e.g. 20-2). */
     public boolean isPeak(int hour) {
         if (peakFrom <= peakTo) return hour >= peakFrom && hour <= peakTo;
         return hour >= peakFrom || hour <= peakTo;
+    }
+
+    /** Index 0..3 (a group of 1..4) picked by weight. */
+    public static int pickSize(int[] weights, int max, java.util.Random r) {
+        int total = 0;
+        for (int i = 0; i < weights.length && i < max; i++) total += weights[i];
+        if (total <= 0) return 1;
+        int roll = r.nextInt(total);
+        for (int i = 0; i < weights.length && i < max; i++) {
+            roll -= weights[i];
+            if (roll < 0) return i + 1;
+        }
+        return 1;
+    }
+
+    private static int[] weights(ConfigurationSection s, String[] keys, int[] fallback) {
+        int[] out = new int[keys.length];
+        boolean any = false;
+        for (int i = 0; i < keys.length; i++) {
+            out[i] = Math.max(0, s.getInt(keys[i], 0));
+            any |= s.contains(keys[i]);
+        }
+        return any ? out : fallback.clone();
+    }
+
+    private static List<String> names(List<String> raw) {
+        List<String> out = new ArrayList<>();
+        for (String n : raw) {
+            String t = n.trim();
+            if (t.matches("[A-Za-z0-9_]{3,16}") && !out.contains(t)) out.add(t);
+        }
+        return out;
     }
 
     /** {@code "20-2"}, {@code [20, 2]} or one number, kept in order (the end may be smaller, e.g. past midnight). */
@@ -168,10 +238,6 @@ public final class LifeConfig {
         } catch (RuntimeException ex) {
             return new int[] {0, 0};
         }
-    }
-
-    private static double chance(ConfigurationSection c, String key, double fallback) {
-        return Math.max(0, Math.min(1, c.getDouble(key, fallback)));
     }
 
     private static ConfigurationSection section(ConfigurationSection c, String key) {

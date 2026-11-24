@@ -16,7 +16,7 @@ class LifeConfigTest {
     private static LifeConfig defaults() {
         var in = Objects.requireNonNull(LifeConfigTest.class.getClassLoader().getResourceAsStream("config.yml"));
         YamlConfiguration y = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
-        return LifeConfig.load(y.getConfigurationSection("residents"));
+        return LifeConfig.load(y);
     }
 
     @Test
@@ -28,10 +28,22 @@ class LifeConfigTest {
         assertTrue(c.activities.keySet().containsAll(java.util.List.of("home", "mine", "visit", "explore", "afk")));
         assertEquals("vexbot spawn {name} {x} {y} {z}", c.joinCommands.get(0));
         assertEquals("vexbot kill {name}", c.leaveCommands.get(0));
-        assertTrue(c.hideFromServerList);
-        assertFalse(c.greetings.isEmpty());
+        assertEquals("vexbot goto {name} {x} {y} {z}", c.oreCommands.get(0));
+        assertEquals(4, c.crewWeights.length);
+        assertTrue(c.banditNames.size() >= 10);
+        assertEquals("vexbot attack {name} {target}", c.banditAttack.get(0));
+        assertTrue(c.ggLines.contains("gG") && c.ggLines.contains("Gg"));
         assertEquals(-50, c.mineDepth.min());
         assertEquals(20, c.mineDepth.max());
+    }
+
+    @Test
+    void groupSizesFollowWeights() {
+        java.util.Random r = new java.util.Random(1);
+        int[] counts = new int[5];
+        for (int i = 0; i < 10000; i++) counts[LifeConfig.pickSize(new int[] {50, 30, 15, 5}, 4, r)]++;
+        assertTrue(counts[1] > counts[2] && counts[2] > counts[3] && counts[3] > counts[4], java.util.Arrays.toString(counts));
+        for (int i = 0; i < 1000; i++) assertTrue(LifeConfig.pickSize(new int[] {50, 30, 15, 5}, 2, r) <= 2);
     }
 
     @Test
@@ -40,7 +52,7 @@ class LifeConfigTest {
         assertTrue(c.isPeak(18));
         assertFalse(c.isPeak(3));
         YamlConfiguration y = new YamlConfiguration();
-        y.set("peak-hours", "20-2");
+        y.set("residents.peak-hours", "20-2");
         LifeConfig w = LifeConfig.load(y);
         assertTrue(w.isPeak(23));
         assertTrue(w.isPeak(1));

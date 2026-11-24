@@ -1,6 +1,7 @@
 package dev.unstablesmp;
 
 import dev.unstablesmp.command.UssCommand;
+import dev.unstablesmp.life.BanditDirector;
 import dev.unstablesmp.life.LifeConfig;
 import dev.unstablesmp.life.LifeDirector;
 import dev.unstablesmp.portal.BlockJournal;
@@ -22,6 +23,8 @@ public final class UnstableSMP extends JavaPlugin {
     private InvasionManager invasions;
     private TotemOfNull totem;
     private LifeDirector residents;
+    private BanditDirector bandits;
+    private LifeConfig life;
     private BukkitTask task;
 
     @Override
@@ -38,8 +41,9 @@ public final class UnstableSMP extends JavaPlugin {
         getServer().getPluginManager().registerEvents(invasions.capture(), this);
         totem = new TotemOfNull(this, invasions);
         getServer().getPluginManager().registerEvents(totem, this);
-        LifeConfig life = LifeConfig.load(getConfig().getConfigurationSection("residents"));
+        life = LifeConfig.load(getConfig());
         residents = new LifeDirector(getDataFolder(), getLogger(), life);
+        bandits = new BanditDirector(getLogger(), residents, life);
         getServer().getPluginManager().registerEvents(residents, this);
         UssCommand cmd = new UssCommand(this);
         var uss = Objects.requireNonNull(getCommand("uss"), "plugin.yml is missing the uss command");
@@ -49,6 +53,7 @@ public final class UnstableSMP extends JavaPlugin {
         task = getServer().getScheduler().runTaskTimer(this, () -> {
             invasions.run();
             residents.tick(invasions.now());
+            bandits.tick(invasions.now());
         }, 1L, 1L);
         if (life.autoStart) getServer().getScheduler().runTaskLater(this, residents::start, 200L);
         getLogger().info("UnstableSMP ready: /uss start opens a NULL portal invasion (spawn command: "
@@ -68,7 +73,9 @@ public final class UnstableSMP extends JavaPlugin {
     public void reload() {
         reloadConfig();
         invasions.settings(Settings.load(getConfig(), getLogger()));
-        residents.config(LifeConfig.load(getConfig().getConfigurationSection("residents")));
+        life = LifeConfig.load(getConfig());
+        residents.config(life);
+        bandits.config(life);
     }
 
     public InvasionManager invasions() {
@@ -81,5 +88,18 @@ public final class UnstableSMP extends JavaPlugin {
 
     public LifeDirector residents() {
         return residents;
+    }
+
+    public BanditDirector bandits() {
+        return bandits;
+    }
+
+    public LifeConfig life() {
+        return life;
+    }
+
+    /** Residents, bandits, and any fake player (VexBot's own bots have no real connection). */
+    public boolean isBot(org.bukkit.entity.Player p) {
+        return residents.isResident(p) || bandits.isBandit(p) || p.getAddress() == null;
     }
 }

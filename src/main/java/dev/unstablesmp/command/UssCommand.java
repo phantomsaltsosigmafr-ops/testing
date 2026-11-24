@@ -25,7 +25,7 @@ import org.bukkit.entity.Player;
  * {@code ~}). Replies go only to whoever ran it; players in the world just see the invasion. Never registers /vexbot.
  */
 public final class UssCommand implements TabExecutor {
-    private static final List<String> SUBS = List.of("start", "stop", "status", "totem", "residents", "reload", "help");
+    private static final List<String> SUBS = List.of("start", "stop", "status", "totem", "residents", "bandits", "gg", "reload", "help");
     private static final List<String> OPTIONS = List.of("radius=", "portals=", "wave=", "duration=", "chance=",
             "interval=", "count=", "alive=", "max=");
 
@@ -53,6 +53,9 @@ public final class UssCommand implements TabExecutor {
             case "status" -> status(sender);
             case "totem" -> totem(sender, rest);
             case "residents", "life" -> residents(sender, rest);
+            case "bandits", "bandit" -> bandits(sender, rest);
+            case "gg" -> msg(sender, "gg-wave", Text.ph("count", Integer.toString(
+                    dev.unstablesmp.life.GgWave.run(plugin, plugin.life(), plugin::isBot))));
             case "reload" -> {
                 plugin.reload();
                 msg(sender, "reloaded");
@@ -220,6 +223,49 @@ public final class UssCommand implements TabExecutor {
         }
     }
 
+    // ------------------------------------------------------------------ bandits
+
+    /** {@code /uss bandits raid [player] [size] | on | off | stop | status}. */
+    private void bandits(CommandSender sender, String[] args) {
+        var b = plugin.bandits();
+        String sub = args.length == 0 ? "status" : args[0].toLowerCase(Locale.ROOT);
+        switch (sub) {
+            case "raid", "jump" -> {
+                Player target = args.length > 1 ? Bukkit.getPlayerExact(args[1]) : sender instanceof Player p ? p : null;
+                if (target == null) {
+                    msg(sender, "unknown-player", Text.ph("player", args.length > 1 ? args[1] : "(name a player)"));
+                    return;
+                }
+                int size = 0;
+                if (args.length > 2) {
+                    try {
+                        size = Integer.parseInt(args[2]);
+                    } catch (NumberFormatException ex) {
+                        msg(sender, "bad-option", Text.ph("option", args[2]));
+                        return;
+                    }
+                }
+                List<String> names = b.raid(target, size);
+                if (names.isEmpty()) msg(sender, "bandits-none");
+                else msg(sender, "bandits-raid", Text.ph("names", String.join(", ", names)), Text.ph("target", target.getName()));
+            }
+            case "on" -> {
+                b.auto(true);
+                msg(sender, "bandits-auto", Text.ph("phase", "on"));
+            }
+            case "off" -> {
+                b.auto(false);
+                msg(sender, "bandits-auto", Text.ph("phase", "off"));
+            }
+            case "stop" -> msg(sender, "bandits-stopped", Text.ph("count", Integer.toString(b.stopAll())));
+            default -> {
+                List<String> raids = b.status();
+                msg(sender, "bandits-status", Text.ph("phase", b.auto() ? "on" : "off"),
+                        Text.ph("names", raids.isEmpty() ? "no raids right now" : String.join(" | ", raids)));
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private static Location origin(CommandSender sender) {
@@ -291,6 +337,12 @@ public final class UssCommand implements TabExecutor {
             return filter(opts, last);
         }
         if (sub.equals("stop") && args.length == 2) return filter(List.of("now"), last);
+        if ((sub.equals("bandits") || sub.equals("bandit")) && args.length == 2) return filter(List.of("raid", "on", "off", "stop", "status"), last);
+        if ((sub.equals("bandits") || sub.equals("bandit")) && args.length == 3 && args[1].equalsIgnoreCase("raid")) {
+            List<String> names = new ArrayList<>();
+            for (Player p : Bukkit.getOnlinePlayers()) if (!plugin.isBot(p)) names.add(p.getName());
+            return filter(names, last);
+        }
         if ((sub.equals("residents") || sub.equals("life")) && args.length == 2) {
             return filter(List.of("on", "off", "status", "sethome"), last);
         }
